@@ -55,9 +55,9 @@ void createGrid()
     }
 }
 
-void mark(Cell curr)
+void mark(Cell curr, Color color)
 {
-    DrawRectangle(horizontal_sep + lineGap * curr.cellX, vertical_sep + lineGap * curr.cellY, lineGap, lineGap, WHITE);
+    DrawRectangle(horizontal_sep + lineGap * curr.cellX, vertical_sep + lineGap * curr.cellY, lineGap, lineGap, color);
 }
 
 Cell update(Cell curr, int dir)
@@ -73,9 +73,12 @@ Cell update(Cell curr, int dir)
     return curr;
 }
 
-int newDirection()
+int newDirection(int cDir)
 {
-    return rand() % 4;
+    int r = rand() % 4;
+    if (cDir == 0 && r == 2 || cDir == 2 && r == 0 || cDir == 1 && r == 3 || cDir == 3 && r == 1)
+        return (r + 7) % 4;
+    return r;
 }
 
 int main(void)
@@ -85,9 +88,10 @@ int main(void)
     SetTargetFPS(1);
 
     Color color = BLACK;
-    Cell curr;
-    curr.cellX = 1;
-    curr.cellY = 10;
+    Cell curr, prev, prev2;
+    curr.cellX = prev.cellX = prev2.cellX = 1;
+    curr.cellY = prev.cellY = prev2.cellY = 10;
+
     srand(time(NULL));
     int cDir = 1;
     while (!WindowShouldClose())
@@ -98,14 +102,17 @@ int main(void)
 
         createGrid();
 
-        for (int i = 0; i < 2; i++)
-        {
-            mark(curr);
-            if (i != 1)
-                curr = update(curr, cDir);
-        }
-
-        cDir = newDirection();
+        // for (int i = 0; i < ; i++)
+        // {
+        mark(curr, WHITE);
+        mark(prev, GRAY);
+        mark(prev2, LIGHTGRAY);
+        // if (i != 1)
+        //     curr = update(curr, cDir);
+        // }
+        cDir = newDirection(cDir);
+        prev2 = prev;
+        prev = curr;
         curr = update(curr, cDir);
 
         EndDrawing();
