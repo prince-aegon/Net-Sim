@@ -52,6 +52,8 @@ int main(void)
 
         createGrid();
 
+        // mark(int x, int y);
+
         EndDrawing();
     }
 
