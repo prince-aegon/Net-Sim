@@ -36,26 +36,80 @@ void createGrid()
     }
 }
 
-void mark(Cell curr, Color color)
+Point cell_to_pixel(Cell cell)
 {
-    DrawRectangle(horizontal_sep + lineGap * curr.cellX, vertical_sep + lineGap * curr.cellY, lineGap, lineGap, color);
+    Point ret;
+    ret.pointX = cell.cellX * lineGap + horizontal_sep;
+    ret.pointY = cell.cellY * lineGap + vertical_sep;
+
+    return ret;
+}
+
+struct pair_cell_dir validate(Cell curr)
+{
+    struct pair_cell_dir validator;
+
+    int valid_dir, flag = 0;
+
+    Point point = cell_to_pixel(curr);
+    if (point.pointX <= horizontal_sep)
+    {
+        curr.cellX = 0;
+        valid_dir = 1;
+        flag = 1;
+    }
+    else if (point.pointX >= screenWidth - horizontal_sep - lineGap)
+    {
+        curr.cellX = (screenWidth - horizontal_sep - lineGap) / lineGap;
+        valid_dir = 3;
+        flag = 1;
+    }
+    if (point.pointY <= vertical_sep)
+    {
+        curr.cellY = 0;
+        valid_dir = 2;
+        flag = 1;
+    }
+    else if (point.pointY >= screenHeight - vertical_sep - lineGap)
+    {
+        curr.cellY = (screenHeight - vertical_sep - lineGap) / lineGap;
+        valid_dir = 0;
+        flag = 1;
+    }
+    validator.cell.cellX = curr.cellX;
+    validator.cell.cellY = curr.cellY;
+    if (flag == 0)
+    {
+        validator.dir = -1;
+        return validator;
+    }
+    validator.dir = valid_dir;
+    return validator;
+}
+void mark(Cell curr)
+{
+    DrawRectangle(horizontal_sep + lineGap * curr.cellX, vertical_sep + lineGap * curr.cellY, lineGap, lineGap, curr.color);
 }
 
 Cell update(Cell curr, int dir)
 {
     if (dir == 0)
-        curr.cellY++;
+        curr.cellY--;
     else if (dir == 1)
         curr.cellX++;
     else if (dir == 2)
-        curr.cellY--;
+        curr.cellY++;
     else
         curr.cellX--;
     return curr;
 }
 
-int newDirection(int cDir)
+int newDirection(Cell curr, int cDir)
 {
+    struct pair_cell_dir temp_pair;
+    temp_pair = validate(curr);
+    if (temp_pair.dir != -1)
+        return temp_pair.dir;
     int r = rand() % 4;
     if (cDir == 0 && r == 2 || cDir == 2 && r == 0 || cDir == 1 && r == 3 || cDir == 3 && r == 1)
         return (r + 7) % 4;
@@ -66,15 +120,24 @@ int main(void)
 {
 
     InitWindow(screenWidth, screenHeight, "Prince");
-    SetTargetFPS(1);
-
-    Color color = BLACK;
-    Cell curr, prev, prev2;
-    curr.cellX = prev.cellX = prev2.cellX = 1;
-    curr.cellY = prev.cellY = prev2.cellY = 10;
+    SetTargetFPS(10);
 
     srand(time(NULL));
     int cDir = 1;
+
+    Cell state[4];
+    Color stateColor[4] = {WHITE,
+                           LIGHTGRAY,
+                           GRAY,
+                           DARKGRAY};
+
+    for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
+    {
+        state[i].cellX = 1;
+        state[i].cellY = 5;
+        state[i].color = stateColor[i];
+    }
+
     while (!WindowShouldClose())
     {
 
@@ -83,18 +146,21 @@ int main(void)
 
         createGrid();
 
-        // for (int i = 0; i < ; i++)
-        // {
-        mark(curr, WHITE);
-        mark(prev, GRAY);
-        mark(prev2, LIGHTGRAY);
-        // if (i != 1)
-        //     curr = update(curr, cDir);
-        // }
-        cDir = newDirection(cDir);
-        prev2 = prev;
-        prev = curr;
-        curr = update(curr, cDir);
+        for (int i = 0; i < 4; i++)
+        {
+            mark(state[i]);
+        }
+
+        cDir = newDirection(state[0], cDir);
+
+        for (int i = 3; i > 0; i--)
+        {
+            Color temp = state[i].color;
+            state[i] = state[i - 1];
+            state[i].color = temp;
+        }
+
+        state[0] = update(state[0], cDir);
 
         EndDrawing();
     }
