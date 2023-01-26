@@ -11,6 +11,8 @@ const int horizontal_sep = 75;
 
 const int lineGap = 10;
 
+BTS ListBTS[2];
+
 void createGrid()
 {
     Point points[4];
@@ -130,6 +132,29 @@ int newDirection(Cell curr, int cDir)
     }
 }
 
+struct pair_int_int nearestBTS(Cell curr)
+{
+    struct pair_int_int ret;
+    int min_rad_index = -1, min_rad = 5000;
+    for (int i = 0; i < 2; i++)
+    {
+        int lhsX = (ListBTS[i].loc.cellX - curr.cellX) * (ListBTS[i].loc.cellX - curr.cellX);
+        int lhsY = (ListBTS[i].loc.cellY - curr.cellY) * (ListBTS[i].loc.cellY - curr.cellY);
+        int rhs = ListBTS[i].radius;
+        if (lhsX + lhsY < rhs)
+        {
+            if (lhsX + lhsY < min_rad)
+            {
+                min_rad = lhsX + lhsY;
+                min_rad_index = i;
+            }
+        }
+    }
+    ret.x = min_rad;
+    ret.y = min_rad_index;
+    return ret;
+}
+
 int main(void)
 {
 
@@ -159,15 +184,38 @@ int main(void)
         }
     }
 
+    // NEED TO IMPROVE THIS
+
+    ListBTS[0].loc.cellX = 15;
+    ListBTS[0].loc.cellY = 15;
+    ListBTS[0].loc.color = BLUE;
+    ListBTS[0].radius = 75;
+
+    ListBTS[1].loc.cellX = 35;
+    ListBTS[1].loc.cellY = 20;
+    ListBTS[1].loc.color = GREEN;
+    ListBTS[1].radius = 120;
+
     while (!WindowShouldClose())
     {
 
         BeginDrawing();
+
         ClearBackground(BLACK);
+
         DrawText(placeholder1, 10, 10, 5, WHITE);
 
         createGrid();
 
+        for (int i = 0; i < 2; i++)
+        {
+            struct pair_int_int ue_to_bts;
+            ue_to_bts = nearestBTS(state[i][0]);
+            if (ue_to_bts.y > -1)
+                state[i][0].color = ListBTS[ue_to_bts.y].loc.color;
+            else
+                state[i][0].color = WHITE;
+        }
         /*
         Bug : if we use 2d arrays for implementing multiple ue's below
         the direction remain the same for all.
@@ -195,13 +243,11 @@ int main(void)
         state[0][0] = update(state[0][0], cDir1);
         state[1][0] = update(state[1][0], cDir2);
 
-        BTS btsLoc;
-        btsLoc.loc.cellX = 15;
-        btsLoc.loc.cellY = 15;
-        btsLoc.loc.color = BLUE;
-        btsLoc.radius = 75;
-        mark(btsLoc.loc);
-        initBTS(btsLoc);
+        mark(ListBTS[0].loc);
+        initBTS(ListBTS[0]);
+
+        mark(ListBTS[1].loc);
+        initBTS(ListBTS[1]);
 
         EndDrawing();
     }

@@ -35,6 +35,13 @@ struct pair_cell_dir
     Cell cell;
     int dir;
 };
+
+struct pair_int_int
+{
+    int x;
+    int y;
+};
+
 void DrawLine(int startPosX, int startPosY, int endPosX, int endPosY, Color color);
 void DrawRectangle(int posX, int posY, int width, int height, Color color);
 void InitWindow(int width, int height, const char *title);
