@@ -1,4 +1,4 @@
-#include "raylib.h"
+#include "ray.h"
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
@@ -10,25 +10,6 @@ const int vertical_sep = 50;
 const int horizontal_sep = 75;
 
 const int lineGap = 10;
-
-enum Direction
-{
-    Top,
-    Right,
-    Down,
-    Left
-};
-typedef struct
-{
-    int pointX;
-    int pointY;
-} Point;
-
-typedef struct
-{
-    int cellX;
-    int cellY;
-} Cell;
 
 void createGrid()
 {
