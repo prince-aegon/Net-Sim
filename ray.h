@@ -37,6 +37,7 @@ bool WindowShouldClose(void);
 void ClearBackground(Color color);
 void BeginDrawing(void);
 void EndDrawing(void);
+void DrawText(const char *text, int posX, int posY, int fontSize, Color color);
 
 #ifndef FALSE
 #define FALSE (0)

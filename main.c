@@ -132,19 +132,26 @@ int main(void)
     SetTargetFPS(10);
 
     srand(time(NULL));
-    int cDir = 1;
+    int cDir1 = 1, cDir2 = 1;
 
-    Cell state[4];
+    char *placeholder1 = "Network-Game";
+
+    // Cell state[4];
     Color stateColor[4] = {WHITE,
                            LIGHTGRAY,
                            GRAY,
                            DARKGRAY};
+    int startLoc[2][2] = {{30, 30}, {10, 10}};
+    Cell state[2][4];
 
     for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
     {
-        state[i].cellX = 30;
-        state[i].cellY = 30;
-        state[i].color = stateColor[i];
+        for (int j = 0; j < sizeof(state[0]) / sizeof(state[0][0]); j++)
+        {
+            state[i][j].cellX = startLoc[i][0];
+            state[i][j].cellY = startLoc[i][1];
+            state[i][j].color = stateColor[j];
+        }
     }
 
     while (!WindowShouldClose())
@@ -152,24 +159,32 @@ int main(void)
 
         BeginDrawing();
         ClearBackground(BLACK);
+        DrawText(placeholder1, 10, 10, 5, WHITE);
 
         createGrid();
 
         for (int i = 0; i < 4; i++)
         {
-            mark(state[i]);
+            mark(state[0][i]);
+            mark(state[1][i]);
         }
 
-        cDir = newDirection(state[0], cDir);
+        cDir1 = newDirection(state[0][0], cDir1);
+        cDir2 = newDirection(state[1][0], cDir2);
 
         for (int i = 3; i > 0; i--)
         {
-            Color temp = state[i].color;
-            state[i] = state[i - 1];
-            state[i].color = temp;
+            Color temp = state[0][i].color;
+            state[0][i] = state[0][i - 1];
+            state[0][i].color = temp;
+
+            temp = state[1][i].color;
+            state[1][i] = state[1][i - 1];
+            state[1][i].color = temp;
         }
 
-        state[0] = update(state[0], cDir);
+        state[0][0] = update(state[0][0], cDir1);
+        state[1][0] = update(state[1][0], cDir2);
 
         EndDrawing();
     }
