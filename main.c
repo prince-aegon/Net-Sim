@@ -58,7 +58,7 @@ struct pair_cell_dir validate(Cell curr)
         valid_dir = 1;
         flag = 1;
     }
-    else if (point.pointX >= screenWidth - horizontal_sep - lineGap)
+    else if (point.pointX >= screenWidth - horizontal_sep - 2 * lineGap)
     {
         curr.cellX = (screenWidth - horizontal_sep - lineGap) / lineGap;
         valid_dir = 3;
@@ -70,7 +70,7 @@ struct pair_cell_dir validate(Cell curr)
         valid_dir = 2;
         flag = 1;
     }
-    else if (point.pointY >= screenHeight - vertical_sep - lineGap)
+    else if (point.pointY >= screenHeight - vertical_sep - 2 * lineGap)
     {
         curr.cellY = (screenHeight - vertical_sep - lineGap) / lineGap;
         valid_dir = 0;
@@ -110,10 +110,19 @@ int newDirection(Cell curr, int cDir)
     temp_pair = validate(curr);
     if (temp_pair.dir != -1)
         return temp_pair.dir;
-    int r = rand() % 4;
-    if (cDir == 0 && r == 2 || cDir == 2 && r == 0 || cDir == 1 && r == 3 || cDir == 3 && r == 1)
-        return (r + 7) % 4;
-    return r;
+
+    int r = rand();
+    int k = r % 4;
+    if ((cDir == 0 && k == 2) || (cDir == 2 && k == 0) || (cDir == 1 && k == 3) || (cDir == 3 && k == 1))
+        return (k + 7) % 4;
+    if (r < RAND_MAX / 8)
+    {
+        return k;
+    }
+    else
+    {
+        return cDir;
+    }
 }
 
 int main(void)
@@ -133,8 +142,8 @@ int main(void)
 
     for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
     {
-        state[i].cellX = 1;
-        state[i].cellY = 5;
+        state[i].cellX = 30;
+        state[i].cellY = 30;
         state[i].color = stateColor[i];
     }
 
