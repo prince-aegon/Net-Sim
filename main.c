@@ -12,6 +12,7 @@ const int horizontal_sep = 75;
 const int lineGap = 10;
 
 BTS ListBTS[3];
+Cell state[3][4];
 
 void createGrid()
 {
@@ -88,6 +89,17 @@ struct pair_cell_dir validate(Cell curr)
     validator.dir = valid_dir;
     return validator;
 }
+
+float getConnectionRate()
+{
+    int total = 0;
+    for (int i = 0; i < sizeof(ListBTS) / sizeof(ListBTS[0]); i++)
+    {
+        total += ListBTS[i].number_of_UE;
+    }
+    return (total * 100) / (sizeof(state) / sizeof(state[0]));
+}
+
 void mark(Cell curr)
 {
     DrawRectangle(horizontal_sep + lineGap * curr.cellX, vertical_sep + lineGap * curr.cellY, lineGap, lineGap, curr.color);
@@ -172,7 +184,6 @@ int main(void)
                            GRAY,
                            DARKGRAY};
     int startLoc[3][2] = {{30, 30}, {10, 10}, {40, 40}};
-    Cell state[3][4];
 
     for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
     {
@@ -218,6 +229,7 @@ int main(void)
         DrawText(TextFormat("%d", ListBTS[0].number_of_UE), 10, 35, 10, BLUE);
         DrawText(TextFormat("%d", ListBTS[1].number_of_UE), 10, 45, 10, GREEN);
         DrawText(TextFormat("%d", ListBTS[2].number_of_UE), 10, 55, 10, RED);
+        DrawText(TextFormat("Connection Rate : %0.f", getConnectionRate()), screenWidth / 2, 10, 10, WHITE);
 
         createGrid();
 
