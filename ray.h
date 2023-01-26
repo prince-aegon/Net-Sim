@@ -24,6 +24,12 @@ typedef struct
     Color color;
 } Cell;
 
+typedef struct
+{
+    Cell loc;
+    int radius;
+} BTS;
+
 struct pair_cell_dir
 {
     Cell cell;
@@ -38,6 +44,7 @@ void ClearBackground(Color color);
 void BeginDrawing(void);
 void EndDrawing(void);
 void DrawText(const char *text, int posX, int posY, int fontSize, Color color);
+void DrawCircle(int centerX, int centerY, float radius, Color color);
 
 #ifndef FALSE
 #define FALSE (0)

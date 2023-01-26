@@ -91,6 +91,11 @@ void mark(Cell curr)
     DrawRectangle(horizontal_sep + lineGap * curr.cellX, vertical_sep + lineGap * curr.cellY, lineGap, lineGap, curr.color);
 }
 
+void initBTS(BTS bts)
+{
+    DrawCircleLines(horizontal_sep + lineGap * bts.loc.cellX + 0.5 * lineGap, vertical_sep + lineGap * bts.loc.cellY + 0.5 * lineGap, bts.radius, bts.loc.color);
+}
+
 Cell update(Cell curr, int dir)
 {
     if (dir == 0)
@@ -163,6 +168,10 @@ int main(void)
 
         createGrid();
 
+        /*
+        Bug : if we use 2d arrays for implementing multiple ue's below
+        the direction remain the same for all.
+        */
         for (int i = 0; i < 4; i++)
         {
             mark(state[0][i]);
@@ -185,6 +194,14 @@ int main(void)
 
         state[0][0] = update(state[0][0], cDir1);
         state[1][0] = update(state[1][0], cDir2);
+
+        BTS btsLoc;
+        btsLoc.loc.cellX = 15;
+        btsLoc.loc.cellY = 15;
+        btsLoc.loc.color = BLUE;
+        btsLoc.radius = 75;
+        mark(btsLoc.loc);
+        initBTS(btsLoc);
 
         EndDrawing();
     }
