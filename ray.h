@@ -22,12 +22,14 @@ typedef struct
     int cellX;
     int cellY;
     Color color;
+    int connection;
 } Cell;
 
 typedef struct
 {
     Cell loc;
     int radius;
+    int number_of_UE;
 } BTS;
 
 struct pair_cell_dir

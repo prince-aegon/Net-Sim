@@ -11,7 +11,7 @@ const int horizontal_sep = 75;
 
 const int lineGap = 10;
 
-BTS ListBTS[2];
+BTS ListBTS[3];
 
 void createGrid()
 {
@@ -136,7 +136,7 @@ struct pair_int_int nearestBTS(Cell curr)
 {
     struct pair_int_int ret;
     int min_rad_index = -1, min_rad = 5000;
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 3; i++)
     {
         int lhsX = (ListBTS[i].loc.cellX - curr.cellX) * (ListBTS[i].loc.cellX - curr.cellX);
         int lhsY = (ListBTS[i].loc.cellY - curr.cellY) * (ListBTS[i].loc.cellY - curr.cellY);
@@ -162,7 +162,7 @@ int main(void)
     SetTargetFPS(10);
 
     srand(time(NULL));
-    int cDir1 = 1, cDir2 = 1;
+    int cDir1 = 1, cDir2 = 1, cDir3 = 1;
 
     char *placeholder1 = "Network-Game";
 
@@ -171,8 +171,8 @@ int main(void)
                            LIGHTGRAY,
                            GRAY,
                            DARKGRAY};
-    int startLoc[2][2] = {{30, 30}, {10, 10}};
-    Cell state[2][4];
+    int startLoc[3][2] = {{30, 30}, {10, 10}, {40, 40}};
+    Cell state[3][4];
 
     for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
     {
@@ -181,6 +181,7 @@ int main(void)
             state[i][j].cellX = startLoc[i][0];
             state[i][j].cellY = startLoc[i][1];
             state[i][j].color = stateColor[j];
+            state[i][j].connection = -1;
         }
     }
 
@@ -190,11 +191,19 @@ int main(void)
     ListBTS[0].loc.cellY = 15;
     ListBTS[0].loc.color = BLUE;
     ListBTS[0].radius = 75;
+    ListBTS[0].number_of_UE = 0;
 
     ListBTS[1].loc.cellX = 35;
     ListBTS[1].loc.cellY = 20;
     ListBTS[1].loc.color = GREEN;
     ListBTS[1].radius = 120;
+    ListBTS[1].number_of_UE = 0;
+
+    ListBTS[2].loc.cellX = 50;
+    ListBTS[2].loc.cellY = 10;
+    ListBTS[2].loc.color = RED;
+    ListBTS[2].radius = 90;
+    ListBTS[2].number_of_UE = 0;
 
     while (!WindowShouldClose())
     {
@@ -205,17 +214,43 @@ int main(void)
 
         DrawText(placeholder1, 10, 10, 5, WHITE);
 
+        DrawText("Number of UE's", 10, 20, 5, WHITE);
+        DrawText(TextFormat("%d", ListBTS[0].number_of_UE), 10, 35, 10, BLUE);
+        DrawText(TextFormat("%d", ListBTS[1].number_of_UE), 10, 45, 10, GREEN);
+        DrawText(TextFormat("%d", ListBTS[2].number_of_UE), 10, 55, 10, RED);
+
         createGrid();
 
-        for (int i = 0; i < 2; i++)
+        for (int i = 0; i < 3; i++)
         {
             struct pair_int_int ue_to_bts;
             ue_to_bts = nearestBTS(state[i][0]);
             if (ue_to_bts.y > -1)
+            {
+                state[i][0].connection = ue_to_bts.y;
                 state[i][0].color = ListBTS[ue_to_bts.y].loc.color;
+                // ListBTS[ue_to_bts.y].number_of_UE;
+            }
             else
+            {
+                // if (state[i][0].connection > -1)
+                //     ListBTS[state[i][0].connection].number_of_UE--;
+                state[i][0].connection = -1;
                 state[i][0].color = WHITE;
+            }
         }
+        for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
+        {
+            ListBTS[i].number_of_UE = 0;
+        }
+        for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
+        {
+            if (state[i][0].connection > -1)
+            {
+                ListBTS[state[i][0].connection].number_of_UE++;
+            }
+        }
+
         /*
         Bug : if we use 2d arrays for implementing multiple ue's below
         the direction remain the same for all.
@@ -224,10 +259,12 @@ int main(void)
         {
             mark(state[0][i]);
             mark(state[1][i]);
+            mark(state[2][i]);
         }
 
         cDir1 = newDirection(state[0][0], cDir1);
         cDir2 = newDirection(state[1][0], cDir2);
+        cDir3 = newDirection(state[2][0], cDir3);
 
         for (int i = 3; i > 0; i--)
         {
@@ -238,16 +275,21 @@ int main(void)
             temp = state[1][i].color;
             state[1][i] = state[1][i - 1];
             state[1][i].color = temp;
+
+            temp = state[2][i].color;
+            state[2][i] = state[2][i - 1];
+            state[2][i].color = temp;
         }
 
         state[0][0] = update(state[0][0], cDir1);
         state[1][0] = update(state[1][0], cDir2);
+        state[2][0] = update(state[2][0], cDir3);
 
-        mark(ListBTS[0].loc);
-        initBTS(ListBTS[0]);
-
-        mark(ListBTS[1].loc);
-        initBTS(ListBTS[1]);
+        for (int i = 0; i < 3; i++)
+        {
+            mark(ListBTS[i].loc);
+            initBTS(ListBTS[i]);
+        }
 
         EndDrawing();
     }
