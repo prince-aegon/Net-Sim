@@ -11,8 +11,12 @@ const int horizontal_sep = 75;
 
 const int lineGap = 10;
 
-BTS ListBTS[3];
-Cell state[3][4];
+const int total_UE = 4;
+const int total_BTS = 3;
+const int trail_bits = 4;
+
+BTS ListBTS[total_BTS];
+Cell state[total_UE][trail_bits];
 
 void createGrid()
 {
@@ -153,7 +157,7 @@ struct pair_int_int nearestBTS(Cell curr)
         int lhsX = (ListBTS[i].loc.cellX - curr.cellX) * (ListBTS[i].loc.cellX - curr.cellX);
         int lhsY = (ListBTS[i].loc.cellY - curr.cellY) * (ListBTS[i].loc.cellY - curr.cellY);
         int rhs = ListBTS[i].radius;
-        if (lhsX + lhsY < rhs)
+        if (lhsX + lhsY <= rhs)
         {
             if (lhsX + lhsY < min_rad)
             {
@@ -173,17 +177,16 @@ int main(void)
     InitWindow(screenWidth, screenHeight, "Prince");
     SetTargetFPS(10);
 
-    srand(time(NULL));
-    int cDir1 = 1, cDir2 = 1, cDir3 = 1;
+    int cdire[total_UE];
 
     char *placeholder1 = "Network-Game";
 
     // Cell state[4];
-    Color stateColor[4] = {WHITE,
-                           LIGHTGRAY,
-                           GRAY,
-                           DARKGRAY};
-    int startLoc[3][2] = {{30, 30}, {10, 10}, {40, 40}};
+    Color stateColor[trail_bits] = {WHITE,
+                                    LIGHTGRAY,
+                                    GRAY,
+                                    DARKGRAY};
+    int startLoc[total_UE][2] = {{30, 30}, {10, 10}, {40, 40}, {20, 20}};
 
     for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
     {
@@ -198,23 +201,20 @@ int main(void)
 
     // NEED TO IMPROVE THIS
 
-    ListBTS[0].loc.cellX = 15;
-    ListBTS[0].loc.cellY = 15;
-    ListBTS[0].loc.color = BLUE;
-    ListBTS[0].radius = 75;
-    ListBTS[0].number_of_UE = 0;
+    int BTS_Data[total_BTS][4] = {{15, 15, 75, 0}, {35, 20, 120, 0}, {50, 10, 90, 0}};
+    Color BTS_Color[total_BTS] = {BLUE, GREEN, RED};
 
-    ListBTS[1].loc.cellX = 35;
-    ListBTS[1].loc.cellY = 20;
-    ListBTS[1].loc.color = GREEN;
-    ListBTS[1].radius = 120;
-    ListBTS[1].number_of_UE = 0;
-
-    ListBTS[2].loc.cellX = 50;
-    ListBTS[2].loc.cellY = 10;
-    ListBTS[2].loc.color = RED;
-    ListBTS[2].radius = 90;
-    ListBTS[2].number_of_UE = 0;
+    for (int i = 0; i < sizeof(BTS_Data) / sizeof(BTS_Data[0]); i++)
+    {
+        for (int j = 0; j < 4; j++)
+        {
+            ListBTS[i].loc.cellX = BTS_Data[i][0];
+            ListBTS[i].loc.cellY = BTS_Data[i][1];
+            ListBTS[i].radius = BTS_Data[i][2];
+            ListBTS[i].number_of_UE = BTS_Data[i][3];
+            ListBTS[i].loc.color = BTS_Color[i];
+        }
+    }
 
     while (!WindowShouldClose())
     {
@@ -233,7 +233,7 @@ int main(void)
 
         createGrid();
 
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < total_UE; i++)
         {
             struct pair_int_int ue_to_bts;
             ue_to_bts = nearestBTS(state[i][0]);
@@ -251,7 +251,7 @@ int main(void)
                 state[i][0].color = WHITE;
             }
         }
-        for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
+        for (int i = 0; i < total_BTS; i++)
         {
             ListBTS[i].number_of_UE = 0;
         }
@@ -267,37 +267,34 @@ int main(void)
         Bug : if we use 2d arrays for implementing multiple ue's below
         the direction remain the same for all.
         */
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
         {
-            mark(state[0][i]);
-            mark(state[1][i]);
-            mark(state[2][i]);
+            for (int j = 0; j < trail_bits; j++)
+            {
+                mark(state[i][j]);
+            }
         }
 
-        cDir1 = newDirection(state[0][0], cDir1);
-        cDir2 = newDirection(state[1][0], cDir2);
-        cDir3 = newDirection(state[2][0], cDir3);
+        srand(time(NULL));
 
-        for (int i = 3; i > 0; i--)
+        for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
+            cdire[i] = newDirection(state[i][0], cdire[i]);
+
+        for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
         {
-            Color temp = state[0][i].color;
-            state[0][i] = state[0][i - 1];
-            state[0][i].color = temp;
-
-            temp = state[1][i].color;
-            state[1][i] = state[1][i - 1];
-            state[1][i].color = temp;
-
-            temp = state[2][i].color;
-            state[2][i] = state[2][i - 1];
-            state[2][i].color = temp;
+            for (int j = trail_bits - 1; j > 0; j--)
+            {
+                Color temp = state[i][j].color;
+                state[i][j] = state[i][j - 1];
+                state[i][j].color = temp;
+            }
+        }
+        for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
+        {
+            state[i][0] = update(state[i][0], cdire[i]);
         }
 
-        state[0][0] = update(state[0][0], cDir1);
-        state[1][0] = update(state[1][0], cDir2);
-        state[2][0] = update(state[2][0], cDir3);
-
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < total_BTS; i++)
         {
             mark(ListBTS[i].loc);
             initBTS(ListBTS[i]);
