@@ -127,6 +127,12 @@ Cell update(Cell curr, int dir)
     return curr;
 }
 
+void drawBTS()
+{
+    for (int i = 0; i < total_BTS; i++)
+        DrawText(TextFormat("BTS%d", i), cell_to_pixel(ListBTS[i].loc).pointX + 10, cell_to_pixel(ListBTS[i].loc).pointY + 10, 8, ListBTS[i].loc.color);
+}
+
 int newDirection(Cell curr, int cDir)
 {
     struct pair_cell_dir temp_pair;
@@ -175,11 +181,11 @@ int main(void)
 {
 
     InitWindow(screenWidth, screenHeight, "Prince");
-    SetTargetFPS(10);
+    SetTargetFPS(20);
 
     int cdire[total_UE];
 
-    char *placeholder1 = "Network-Game";
+    char *placeholder1 = "Network-Sim";
 
     // Cell state[4];
     Color stateColor[trail_bits] = {WHITE,
@@ -231,6 +237,7 @@ int main(void)
         DrawText(TextFormat("%d", ListBTS[2].number_of_UE), 10, 55, 10, RED);
         DrawText(TextFormat("Connection Rate : %0.f", getConnectionRate()), screenWidth / 2, 10, 10, WHITE);
 
+        drawBTS();
         createGrid();
 
         for (int i = 0; i < total_UE; i++)
@@ -241,12 +248,9 @@ int main(void)
             {
                 state[i][0].connection = ue_to_bts.y;
                 state[i][0].color = ListBTS[ue_to_bts.y].loc.color;
-                // ListBTS[ue_to_bts.y].number_of_UE;
             }
             else
             {
-                // if (state[i][0].connection > -1)
-                //     ListBTS[state[i][0].connection].number_of_UE--;
                 state[i][0].connection = -1;
                 state[i][0].color = WHITE;
             }
@@ -263,10 +267,6 @@ int main(void)
             }
         }
 
-        /*
-        Bug : if we use 2d arrays for implementing multiple ue's below
-        the direction remain the same for all.
-        */
         for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
         {
             for (int j = 0; j < trail_bits; j++)
