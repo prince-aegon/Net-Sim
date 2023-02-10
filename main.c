@@ -3,6 +3,8 @@
 #include <time.h>
 #include <stdlib.h>
 
+#define MAX_INPUT_CHARS 9
+
 const int screenWidth = 800;
 const int screenHeight = 450;
 
@@ -17,6 +19,22 @@ const int trail_bits = 4;
 
 BTS ListBTS[total_BTS];
 Cell state[total_UE][trail_bits];
+
+void StartTimer(Timer *timer, double lifetime)
+{
+    timer->startTime = GetTime();
+    timer->lifeTime = lifetime;
+}
+
+bool TimerDone(Timer timer)
+{
+    return GetTime() - timer.startTime >= timer.lifeTime;
+}
+
+double GetElapsed(Timer timer)
+{
+    return GetTime() - timer.startTime;
+}
 
 void createGrid()
 {
@@ -181,7 +199,7 @@ int main(void)
 {
 
     InitWindow(screenWidth, screenHeight, "Prince");
-    SetTargetFPS(20);
+    SetTargetFPS(10);
 
     int cdire[total_UE];
 
@@ -222,82 +240,197 @@ int main(void)
         }
     }
 
+    char name[MAX_INPUT_CHARS + 1] = "\0"; // NOTE: One extra space required for null terminator char '\0'
+    int letterCount = 0;
+    int framesCounter = 0;
+
+    int currScreen = 0;
+    bool mouseOnText = false;
+    bool mouseClick = false;
+    Rectangle textBox = {60, 60, 80, 30};
+
     while (!WindowShouldClose())
     {
 
-        BeginDrawing();
-
-        ClearBackground(BLACK);
-
-        DrawText(placeholder1, 10, 10, 5, WHITE);
-
-        DrawText("Number of UE's", 10, 20, 5, WHITE);
-        DrawText(TextFormat("%d", ListBTS[0].number_of_UE), 10, 35, 10, BLUE);
-        DrawText(TextFormat("%d", ListBTS[1].number_of_UE), 10, 45, 10, GREEN);
-        DrawText(TextFormat("%d", ListBTS[2].number_of_UE), 10, 55, 10, RED);
-        DrawText(TextFormat("Connection Rate : %0.f", getConnectionRate()), screenWidth / 2, 10, 10, WHITE);
-
-        drawBTS();
-        createGrid();
-
-        for (int i = 0; i < total_UE; i++)
+        if (currScreen == 0)
         {
-            struct pair_int_int ue_to_bts;
-            ue_to_bts = nearestBTS(state[i][0]);
-            if (ue_to_bts.y > -1)
+            if (CheckCollisionPointRec(GetMousePosition(), textBox))
+                mouseOnText = true;
+            else
+                mouseOnText = false;
+
+            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsMouseButtonDown(MOUSE_BUTTON_FORWARD) || IsMouseButtonDown(MOUSE_BUTTON_RIGHT) || IsMouseButtonDown(MOUSE_BUTTON_MIDDLE))
             {
-                state[i][0].connection = ue_to_bts.y;
-                state[i][0].color = ListBTS[ue_to_bts.y].loc.color;
+                Point cursor;
+                cursor.pointX = GetMouseX();
+                cursor.pointY = GetMouseY();
+                if (cursor.pointX >= textBox.x && cursor.pointX <= textBox.x + textBox.width)
+                {
+                    if (cursor.pointY >= textBox.y && cursor.pointY <= textBox.y + textBox.height)
+                    {
+                        mouseClick = true;
+                    }
+                    else
+                    {
+                        mouseClick = false;
+                    }
+                }
+                else
+                {
+                    mouseClick = false;
+                }
+            }
+
+            if (mouseClick)
+            {
+                // Set the window's cursor to the I-Beam
+                SetMouseCursor(MOUSE_CURSOR_IBEAM);
+
+                // Get char pressed (unicode character) on the queue
+                int key = GetCharPressed();
+
+                // Check if more characters have been pressed on the same frame
+                while (key > 0)
+                {
+                    // NOTE: Only allow keys in range [32..125]
+                    if ((key >= 32) && (key <= 125) && (letterCount < MAX_INPUT_CHARS))
+                    {
+                        name[letterCount] = (char)key;
+                        name[letterCount + 1] = '\0'; // Add null terminator at the end of the string.
+                        letterCount++;
+                    }
+
+                    key = GetCharPressed(); // Check next character in the queue
+                }
+
+                if (IsKeyPressed(KEY_BACKSPACE))
+                {
+                    letterCount--;
+                    if (letterCount < 0)
+                        letterCount = 0;
+                    name[letterCount] = '\0';
+                }
             }
             else
+                SetMouseCursor(MOUSE_CURSOR_DEFAULT);
+
+            if (mouseClick)
+                framesCounter++;
+            else
+                framesCounter = 0;
+        }
+
+        BeginDrawing();
+
+        if (currScreen == 0)
+        {
+            ClearBackground(WHITE);
+            DrawText("WELCOME!!!", 20, 20, 15, BLACK);
+
+            DrawRectangleRec(textBox, LIGHTGRAY);
+            if (mouseClick)
+                DrawRectangleLines((int)textBox.x, (int)textBox.y, (int)textBox.width, (int)textBox.height, RED);
+            else
+                DrawRectangleLines((int)textBox.x, (int)textBox.y, (int)textBox.width, (int)textBox.height, DARKGRAY);
+
+            DrawText(name, (int)textBox.x + 5, (int)textBox.y + 8, 5, MAROON);
+
+            // DrawText(TextFormat("INPUT CHARS: %i/%i", letterCount, MAX_INPUT_CHARS), 315, 250, 20, DARKGRAY);
+
+            if (mouseClick)
             {
-                state[i][0].connection = -1;
-                state[i][0].color = WHITE;
+                if (letterCount < MAX_INPUT_CHARS)
+                {
+                    // Draw blinking underscore char
+                    if (((framesCounter / 20) % 2) == 0)
+                        DrawText("_", (int)textBox.x + 8 + MeasureText(name, 40), (int)textBox.y + 12, 5, MAROON);
+                }
+                else
+                {
+                }
+                // DrawText("Press BACKSPACE to delete chars...", 230, 300, 20, GRAY);
+            }
+
+            if (IsKeyPressed(KEY_ENTER))
+            {
+                currScreen = 1;
             }
         }
-        for (int i = 0; i < total_BTS; i++)
+        else if (currScreen == 1)
         {
-            ListBTS[i].number_of_UE = 0;
-        }
-        for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
-        {
-            if (state[i][0].connection > -1)
+
+            ClearBackground(BLACK);
+
+            DrawText(placeholder1, 10, 10, 5, WHITE);
+
+            DrawText("Number of UE's", 10, 20, 5, WHITE);
+            DrawText(TextFormat("%d", ListBTS[0].number_of_UE), 10, 35, 10, BLUE);
+            DrawText(TextFormat("%d", ListBTS[1].number_of_UE), 10, 45, 10, GREEN);
+            DrawText(TextFormat("%d", ListBTS[2].number_of_UE), 10, 55, 10, RED);
+            DrawText(TextFormat("Connection Rate : %0.f", getConnectionRate()), screenWidth / 2, 10, 10, WHITE);
+
+            drawBTS();
+            createGrid();
+
+            for (int i = 0; i < total_UE; i++)
             {
-                ListBTS[state[i][0].connection].number_of_UE++;
+                struct pair_int_int ue_to_bts;
+                ue_to_bts = nearestBTS(state[i][0]);
+                if (ue_to_bts.y > -1)
+                {
+                    state[i][0].connection = ue_to_bts.y;
+                    state[i][0].color = ListBTS[ue_to_bts.y].loc.color;
+                }
+                else
+                {
+                    state[i][0].connection = -1;
+                    state[i][0].color = WHITE;
+                }
             }
-        }
-
-        for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
-        {
-            for (int j = 0; j < trail_bits; j++)
+            for (int i = 0; i < total_BTS; i++)
             {
-                mark(state[i][j]);
+                ListBTS[i].number_of_UE = 0;
             }
-        }
-
-        srand(time(NULL));
-
-        for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
-            cdire[i] = newDirection(state[i][0], cdire[i]);
-
-        for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
-        {
-            for (int j = trail_bits - 1; j > 0; j--)
+            for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
             {
-                Color temp = state[i][j].color;
-                state[i][j] = state[i][j - 1];
-                state[i][j].color = temp;
+                if (state[i][0].connection > -1)
+                {
+                    ListBTS[state[i][0].connection].number_of_UE++;
+                }
             }
-        }
-        for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
-        {
-            state[i][0] = update(state[i][0], cdire[i]);
-        }
 
-        for (int i = 0; i < total_BTS; i++)
-        {
-            mark(ListBTS[i].loc);
-            initBTS(ListBTS[i]);
+            for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
+            {
+                for (int j = 0; j < trail_bits; j++)
+                {
+                    mark(state[i][j]);
+                }
+            }
+
+            srand(time(NULL));
+
+            for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
+                cdire[i] = newDirection(state[i][0], cdire[i]);
+
+            for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
+            {
+                for (int j = trail_bits - 1; j > 0; j--)
+                {
+                    Color temp = state[i][j].color;
+                    state[i][j] = state[i][j - 1];
+                    state[i][j].color = temp;
+                }
+            }
+            for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
+            {
+                state[i][0] = update(state[i][0], cdire[i]);
+            }
+
+            for (int i = 0; i < total_BTS; i++)
+            {
+                mark(ListBTS[i].loc);
+                initBTS(ListBTS[i]);
+            }
         }
 
         EndDrawing();

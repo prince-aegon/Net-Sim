@@ -32,6 +32,12 @@ typedef struct
     int number_of_UE;
 } BTS;
 
+typedef struct Timer
+{
+    double startTime; // Start time (seconds)
+    double lifeTime;  // Lifetime (seconds)
+} Timer;
+
 struct pair_cell_dir
 {
     Cell cell;
@@ -54,6 +60,9 @@ void BeginDrawing(void);
 void EndDrawing(void);
 void DrawText(const char *text, int posX, int posY, int fontSize, Color color);
 void DrawCircle(int centerX, int centerY, float radius, Color color);
+void StartTimer(Timer *timer, double lifetime);
+bool TimerDone(Timer timer);
+double GetElapsed(Timer timer);
 
 #ifndef FALSE
 #define FALSE (0)
