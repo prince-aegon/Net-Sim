@@ -237,20 +237,30 @@ void initBTS(BTS bts)
 Cell update(Cell curr, int dir)
 {
     if (dir == 0)
+    {
         curr.cellY--;
+    }
     else if (dir == 1)
+    {
         curr.cellX++;
+    }
     else if (dir == 2)
+    {
         curr.cellY++;
+    }
     else
+    {
         curr.cellX--;
+    }
     return curr;
 }
 
 void drawBTS()
 {
     for (int i = 0; i < total_BTS; i++)
+    {
         DrawText(TextFormat("BTS%d", i), cell_to_pixel(ListBTS[i].loc).pointX + 10, cell_to_pixel(ListBTS[i].loc).pointY + 10, 8, ListBTS[i].loc.color);
+    }
 }
 
 int newDirection(Cell curr, int cDir)
@@ -258,12 +268,16 @@ int newDirection(Cell curr, int cDir)
     struct pair_cell_dir temp_pair;
     temp_pair = validate(curr);
     if (temp_pair.dir != -1)
+    {
         return temp_pair.dir;
+    }
 
     int r = rand();
     int k = r % 4;
     if ((cDir == 0 && k == 2) || (cDir == 2 && k == 0) || (cDir == 1 && k == 3) || (cDir == 3 && k == 1))
+    {
         return (k + 7) % 4;
+    }
     if (r < RAND_MAX / 8)
     {
         return k;
@@ -442,9 +456,13 @@ int main(void)
         if (currScreen == 0)
         {
             if (CheckCollisionPointRec(GetMousePosition(), textBox))
+            {
                 mouseOnText = true;
+            }
             else
+            {
                 mouseOnText = false;
+            }
 
             if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsMouseButtonDown(MOUSE_BUTTON_FORWARD) || IsMouseButtonDown(MOUSE_BUTTON_RIGHT) || IsMouseButtonDown(MOUSE_BUTTON_MIDDLE))
             {
@@ -494,7 +512,9 @@ int main(void)
                 {
                     letterCount--;
                     if (letterCount < 0)
+                    {
                         letterCount = 0;
+                    }
                     inUE[letterCount] = '\0';
                 }
             }
@@ -502,9 +522,13 @@ int main(void)
                 SetMouseCursor(MOUSE_CURSOR_DEFAULT);
 
             if (mouseClick)
+            {
                 framesCounter++;
+            }
             else
+            {
                 framesCounter = 0;
+            }
         }
 
         BeginDrawing();
@@ -516,10 +540,13 @@ int main(void)
 
             DrawRectangleRec(textBox, LIGHTGRAY);
             if (mouseClick)
+            {
                 DrawRectangleLines((int)textBox.x, (int)textBox.y, (int)textBox.width, (int)textBox.height, RED);
+            }
             else
+            {
                 DrawRectangleLines((int)textBox.x, (int)textBox.y, (int)textBox.width, (int)textBox.height, DARKGRAY);
-
+            }
             DrawText(inUE, (int)textBox.x + 5, (int)textBox.y + 8, 5, MAROON);
             DrawText("#BTS : ", (int)textBox.x - 40, (int)textBox.y + 10, 5, BLACK);
 
@@ -539,6 +566,8 @@ int main(void)
             //     // DrawText("Press BACKSPACE to delete chars...", 230, 300, 20, GRAY);
             // }
 
+            // exit menu screen when enter is pressed
+            // takes delay for some reason
             if (IsKeyPressed(KEY_ENTER))
             {
                 dynamic_UE_count = atoi(inUE);
@@ -587,6 +616,28 @@ int main(void)
                 }
             }
 
+            // template to update db on estabilished connections
+            char sql_connection[64];
+            sprintf(sql_connection, "UPDATE UE SET CONNECTION=%d WHERE ID = 1", state[0][0].connection);
+
+            exit_stat = sqlite3_exec(DB, sql_connection, callback, NULL, &messageError);
+
+            if (exit_stat != SQLITE_OK)
+            {
+                fprintf(stderr, "Failed to select data\n");
+                fprintf(stderr, "SQL error: %s\n", messageError);
+
+                sqlite3_free(messageError);
+                sqlite3_close(DB);
+
+                return 1;
+            }
+            else
+            {
+                printf("Connection estabilished with BTS %d \t", state[0][0].connection);
+            }
+
+            // draw line between ue and connected db
             for (int i = 0; i < total_UE; i++)
             {
                 connectUEtoBTS(state[i][0], ListBTS[state[i][0].connection].loc);
@@ -598,6 +649,7 @@ int main(void)
                 ListBTS[i].number_of_UE = 0;
             }
 
+            // update bts memory(temp)
             for (int i = 0; i < dynamic_UE_count; i++)
             {
                 if (state[i][0].connection > -1)
@@ -606,6 +658,7 @@ int main(void)
                 }
             }
 
+            // init mark the ue
             for (int i = 0; i < dynamic_UE_count; i++)
             {
                 for (int j = 0; j < trail_bits; j++)
@@ -638,6 +691,7 @@ int main(void)
                 state[i][0] = update(state[i][0], cdire[i]);
             }
 
+            // template to update position of ue in db
             char sql_update[64];
             sprintf(sql_update, "UPDATE UE SET X=%d, Y=%d WHERE ID = 1", state[0][0].cellX, state[0][0].cellY);
 
@@ -658,7 +712,7 @@ int main(void)
             }
             else
             {
-                printf("Query passed %d \n", state[0][0]);
+                printf("Query passed \n");
             }
 
             // set all BTS
