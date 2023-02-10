@@ -69,6 +69,20 @@ int dynamic_UE_count = total_UE;
 BTS ListBTS[total_BTS];
 Cell state[total_UE][trail_bits];
 
+int callback(void *data, int argc, char **argv, char **azColName)
+{
+    int i;
+    fprintf(stderr, "%s: ", (const char *)data);
+
+    for (i = 0; i < argc; i++)
+    {
+        printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+    }
+
+    printf("\n");
+    return 0;
+}
+
 void StartTimer(Timer *timer, double lifetime)
 {
     timer->startTime = GetTime();
@@ -279,7 +293,9 @@ int main(void)
 {
     sqlite3 *DB;
     int exit_stat = 0;
-    char *sql = "CREATE TABLE UE("
+    char *messageError;
+
+    char *sql = "CREATE TABLE IF NOT EXISTS UE("
                 "ID INT PRIMARY KEY NOT NULL,"
                 "X  INT             NOT NULL,"
                 "Y  INT             NOT NULL,"
@@ -288,20 +304,58 @@ int main(void)
 
     exit_stat = sqlite3_open("net-sim.db", &DB);
 
-    char *messaggeError;
-
-    exit_stat = sqlite3_exec(DB, sql, NULL, 0, &messaggeError);
+    exit_stat = sqlite3_exec(DB, sql, NULL, 0, &messageError);
 
     if (exit_stat != SQLITE_OK)
     {
         printf("Error opening db %s \n", sqlite3_errmsg(DB));
-        sqlite3_free(messaggeError);
+        sqlite3_free(messageError);
         return -1;
     }
     else
     {
         printf("Table created successfully \n");
     }
+
+    char *sql_insert = "INSERT OR IGNORE INTO UE VALUES(1, 20, 10, 'WHITE', 2);"
+                       "INSERT OR IGNORE INTO UE VALUES(2, 5, 5, 'BLUE', 4);";
+
+    exit_stat = sqlite3_exec(DB, sql_insert, NULL, 0, &messageError);
+
+    if (exit_stat != SQLITE_OK)
+    {
+
+        fprintf(stderr, "SQL error: %s\n", messageError);
+
+        sqlite3_free(messageError);
+        sqlite3_close(DB);
+
+        return 1;
+    }
+    else
+    {
+        printf("Insertion successfully \n");
+    }
+
+    char *sql_query = "SELECT * FROM UE;";
+
+    exit_stat = sqlite3_exec(DB, sql_query, callback, NULL, &messageError);
+
+    if (exit_stat != SQLITE_OK)
+    {
+        fprintf(stderr, "Failed to select data\n");
+        fprintf(stderr, "SQL error: %s\n", messageError);
+
+        sqlite3_free(messageError);
+        sqlite3_close(DB);
+
+        return 1;
+    }
+    else
+    {
+        printf("Query passed \n");
+    }
+
     SetTraceLogCallback(CustomLog);
 
     InitWindow(screenWidth, screenHeight, "Prince");
@@ -543,7 +597,6 @@ int main(void)
             {
                 cdire[i] = newDirection(state[i][0], cdire[i]);
             }
-
             // move colors across tail
             for (int i = 0; i < dynamic_UE_count; i++)
             {
@@ -559,6 +612,29 @@ int main(void)
             for (int i = 0; i < dynamic_UE_count; i++)
             {
                 state[i][0] = update(state[i][0], cdire[i]);
+            }
+
+            char sql_update[64];
+            sprintf(sql_update, "UPDATE UE SET X=%d, Y=%d WHERE ID = 1", state[0][0]);
+
+            printf("sql_update : %s \n", sql_update);
+            printf("reached here \n");
+
+            exit_stat = sqlite3_exec(DB, sql_update, callback, NULL, &messageError);
+
+            if (exit_stat != SQLITE_OK)
+            {
+                fprintf(stderr, "Failed to select data\n");
+                fprintf(stderr, "SQL error: %s\n", messageError);
+
+                sqlite3_free(messageError);
+                sqlite3_close(DB);
+
+                return 1;
+            }
+            else
+            {
+                printf("Query passed %d \n", state[0][0]);
             }
 
             // set all BTS
