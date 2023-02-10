@@ -13,6 +13,13 @@ enum Direction
     Down,
     Left
 };
+
+typedef enum
+{
+    Verizon,
+    Comcast,
+    ATnT
+} ISP;
 typedef struct
 {
     int pointX;
@@ -25,6 +32,7 @@ typedef struct
     int cellY;
     Color color;
     int connection;
+    ISP nodeIsp;
 } Cell;
 
 typedef struct
@@ -266,11 +274,18 @@ int newDirection(Cell curr, int cDir)
     }
 }
 
+void connectUEtoBTS(Cell ue, Cell BTS)
+{
+    Point point_ue = cell_to_pixel(ue);
+    Point point_bts = cell_to_pixel(BTS);
+    DrawLine(point_ue.pointX, point_ue.pointY, point_bts.pointX, point_bts.pointY, BTS.color);
+}
+
 struct pair_int_int nearestBTS(Cell curr)
 {
     struct pair_int_int ret;
     int min_rad_index = -1, min_rad = 5000;
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < total_BTS; i++)
     {
         int lhsX = (ListBTS[i].loc.cellX - curr.cellX) * (ListBTS[i].loc.cellX - curr.cellX);
         int lhsY = (ListBTS[i].loc.cellY - curr.cellY) * (ListBTS[i].loc.cellY - curr.cellY);
@@ -300,7 +315,8 @@ int main(void)
                 "X  INT             NOT NULL,"
                 "Y  INT             NOT NULL,"
                 "COLOR CHAR(32)             ,"
-                "CONNECTION INT             );";
+                "CONNECTION INT             ,"
+                "ISP INT                    );";
 
     exit_stat = sqlite3_open("net-sim.db", &DB);
 
@@ -317,8 +333,8 @@ int main(void)
         printf("Table created successfully \n");
     }
 
-    char *sql_insert = "INSERT OR IGNORE INTO UE VALUES(1, 20, 10, 'WHITE', 2);"
-                       "INSERT OR IGNORE INTO UE VALUES(2, 5, 5, 'BLUE', 4);";
+    char *sql_insert = "INSERT OR IGNORE INTO UE VALUES(1, 20, 10, 'WHITE', 2, 0);"
+                       "INSERT OR IGNORE INTO UE VALUES(2, 5, 5, 'BLUE', 4, 1);";
 
     exit_stat = sqlite3_exec(DB, sql_insert, NULL, 0, &messageError);
 
@@ -384,6 +400,7 @@ int main(void)
             state[i][j].cellY = startLoc[i][1];
             state[i][j].color = stateColor[j];
             state[i][j].connection = -1;
+            state[i][j].nodeIsp = Verizon;
         }
     }
 
@@ -552,10 +569,12 @@ int main(void)
             createGrid();
 
             // update connections between bts and ue
+            // if
             for (int i = 0; i < total_UE; i++)
             {
                 struct pair_int_int ue_to_bts;
                 ue_to_bts = nearestBTS(state[i][0]);
+
                 if (ue_to_bts.y > -1)
                 {
                     state[i][0].connection = ue_to_bts.y;
@@ -566,6 +585,11 @@ int main(void)
                     state[i][0].connection = -1;
                     state[i][0].color = WHITE;
                 }
+            }
+
+            for (int i = 0; i < total_UE; i++)
+            {
+                connectUEtoBTS(state[i][0], ListBTS[state[i][0].connection].loc);
             }
 
             // init BTS connection count
@@ -615,10 +639,10 @@ int main(void)
             }
 
             char sql_update[64];
-            sprintf(sql_update, "UPDATE UE SET X=%d, Y=%d WHERE ID = 1", state[0][0]);
+            sprintf(sql_update, "UPDATE UE SET X=%d, Y=%d WHERE ID = 1", state[0][0].cellX, state[0][0].cellY);
 
-            printf("sql_update : %s \n", sql_update);
-            printf("reached here \n");
+            // printf("sql_update : %s \n", sql_update);
+            // printf("reached here \n");
 
             exit_stat = sqlite3_exec(DB, sql_update, callback, NULL, &messageError);
 
