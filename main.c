@@ -1,7 +1,7 @@
-#include "ray.h"
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
+#include "raylib.h"
 
 #define MAX_INPUT_CHARS 9
 
@@ -63,6 +63,8 @@ const int total_UE = 4;
 const int total_BTS = 3;
 const int trail_bits = 4;
 
+int dynamic_UE_count = total_UE;
+
 BTS ListBTS[total_BTS];
 Cell state[total_UE][trail_bits];
 
@@ -80,6 +82,37 @@ bool TimerDone(Timer timer)
 double GetElapsed(Timer timer)
 {
     return GetTime() - timer.startTime;
+}
+
+void CustomLog(int msgType, const char *text, va_list args)
+{
+    char timeStr[64] = {0};
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+
+    strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", tm_info);
+    printf("[%s] ", timeStr);
+
+    switch (msgType)
+    {
+    case LOG_INFO:
+        printf("[INFO] : ");
+        break;
+    case LOG_ERROR:
+        printf("[ERROR]: ");
+        break;
+    case LOG_WARNING:
+        printf("[WARN] : ");
+        break;
+    case LOG_DEBUG:
+        printf("[DEBUG]: ");
+        break;
+    default:
+        break;
+    }
+
+    vprintf(text, args);
+    printf("\n");
 }
 
 void createGrid()
@@ -165,7 +198,7 @@ float getConnectionRate()
     {
         total += ListBTS[i].number_of_UE;
     }
-    return (total * 100) / (sizeof(state) / sizeof(state[0]));
+    return (total * 100) / (dynamic_UE_count);
 }
 
 void mark(Cell curr)
@@ -243,6 +276,7 @@ struct pair_int_int nearestBTS(Cell curr)
 
 int main(void)
 {
+    SetTraceLogCallback(CustomLog);
 
     InitWindow(screenWidth, screenHeight, "Prince");
     SetTargetFPS(10);
@@ -259,10 +293,12 @@ int main(void)
 
     // Man data 1
     int startLoc[total_UE][2] = {{30, 30}, {10, 10}, {40, 40}, {20, 20}};
+    // printf("%s\n", (dynamic_UE_count));
+    // printf("%d\n", (trail_bits));
 
-    for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
+    for (int i = 0; i < dynamic_UE_count; i++)
     {
-        for (int j = 0; j < sizeof(state[0]) / sizeof(state[0][0]); j++)
+        for (int j = 0; j < trail_bits; j++)
         {
             state[i][j].cellX = startLoc[i][0];
             state[i][j].cellY = startLoc[i][1];
@@ -289,7 +325,7 @@ int main(void)
         }
     }
 
-    char name[MAX_INPUT_CHARS + 1] = "\0"; // NOTE: One extra space required for null terminator char '\0'
+    char inUE[MAX_INPUT_CHARS + 1] = "\0"; // NOTE: One extra space required for null terminator char '\0'
     int letterCount = 0;
     int framesCounter = 0;
 
@@ -349,8 +385,8 @@ int main(void)
                     // NOTE: Only allow keys in range [32..125]
                     if ((key >= 32) && (key <= 125) && (letterCount < MAX_INPUT_CHARS))
                     {
-                        name[letterCount] = (char)key;
-                        name[letterCount + 1] = '\0'; // Add null terminator at the end of the string.
+                        inUE[letterCount] = (char)key;
+                        inUE[letterCount + 1] = '\0'; // Add null terminator at the end of the string.
                         letterCount++;
                     }
 
@@ -362,7 +398,7 @@ int main(void)
                     letterCount--;
                     if (letterCount < 0)
                         letterCount = 0;
-                    name[letterCount] = '\0';
+                    inUE[letterCount] = '\0';
                 }
             }
             else
@@ -387,26 +423,28 @@ int main(void)
             else
                 DrawRectangleLines((int)textBox.x, (int)textBox.y, (int)textBox.width, (int)textBox.height, DARKGRAY);
 
-            DrawText(name, (int)textBox.x + 5, (int)textBox.y + 8, 5, MAROON);
+            DrawText(inUE, (int)textBox.x + 5, (int)textBox.y + 8, 5, MAROON);
+            DrawText("#BTS : ", (int)textBox.x - 40, (int)textBox.y + 10, 5, BLACK);
 
             // DrawText(TextFormat("INPUT CHARS: %i/%i", letterCount, MAX_INPUT_CHARS), 315, 250, 20, DARKGRAY);
 
-            if (mouseClick)
-            {
-                if (letterCount < MAX_INPUT_CHARS)
-                {
-                    // Draw blinking underscore char
-                    if (((framesCounter / 20) % 2) == 0)
-                        DrawText("_", (int)textBox.x + 8 + MeasureText(name, 40), (int)textBox.y + 12, 5, MAROON);
-                }
-                else
-                {
-                }
-                // DrawText("Press BACKSPACE to delete chars...", 230, 300, 20, GRAY);
-            }
+            // if (mouseClick)
+            // {
+            //     if (letterCount < MAX_INPUT_CHARS)
+            //     {
+            // Draw blinking underscore char
+            if (((framesCounter / 10) % 2) == 0)
+                DrawText(" |", (int)textBox.x + 4 + MeasureText(inUE, 5), (int)textBox.y + 8, 5, MAROON);
+            //     }
+            //     else
+            //     {
+            //     }
+            //     // DrawText("Press BACKSPACE to delete chars...", 230, 300, 20, GRAY);
+            // }
 
             if (IsKeyPressed(KEY_ENTER))
             {
+                dynamic_UE_count = atoi(inUE);
                 currScreen = 1;
             }
         }
@@ -422,7 +460,13 @@ int main(void)
             DrawText(TextFormat("%d", ListBTS[1].number_of_UE), 10, 45, 10, GREEN);
             DrawText(TextFormat("%d", ListBTS[2].number_of_UE), 10, 55, 10, RED);
             DrawText(TextFormat("Connection Rate : %0.f", getConnectionRate()), screenWidth / 2, 10, 10, WHITE);
-            DrawText(name, 10, 75, 10, WHITE);
+
+            // int k = atoi(inUE);
+            // k = k + 100;
+            // char buf[sizeof(int) * 3 + 2];
+            // snprintf(buf, sizeof buf, "%d", k);
+
+            DrawText(inUE, 10, 75, 10, WHITE);
 
             drawBTS();
             createGrid();
@@ -447,7 +491,7 @@ int main(void)
             {
                 ListBTS[i].number_of_UE = 0;
             }
-            for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
+            for (int i = 0; i < dynamic_UE_count; i++)
             {
                 if (state[i][0].connection > -1)
                 {
@@ -455,7 +499,7 @@ int main(void)
                 }
             }
 
-            for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
+            for (int i = 0; i < dynamic_UE_count; i++)
             {
                 for (int j = 0; j < trail_bits; j++)
                 {
@@ -465,12 +509,12 @@ int main(void)
 
             srand(time(NULL));
 
-            for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
+            for (int i = 0; i < dynamic_UE_count; i++)
             {
                 cdire[i] = newDirection(state[i][0], cdire[i]);
             }
 
-            for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
+            for (int i = 0; i < dynamic_UE_count; i++)
             {
                 for (int j = trail_bits - 1; j > 0; j--)
                 {
@@ -479,7 +523,7 @@ int main(void)
                     state[i][j].color = temp;
                 }
             }
-            for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
+            for (int i = 0; i < dynamic_UE_count; i++)
             {
                 state[i][0] = update(state[i][0], cdire[i]);
             }
