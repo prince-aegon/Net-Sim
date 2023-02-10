@@ -5,6 +5,52 @@
 
 #define MAX_INPUT_CHARS 9
 
+enum Direction
+{
+    Top,
+    Right,
+    Down,
+    Left
+};
+typedef struct
+{
+    int pointX;
+    int pointY;
+} Point;
+
+typedef struct
+{
+    int cellX;
+    int cellY;
+    Color color;
+    int connection;
+} Cell;
+
+typedef struct
+{
+    Cell loc;
+    int radius;
+    int number_of_UE;
+} BTS;
+
+typedef struct Timer
+{
+    double startTime; // Start time (seconds)
+    double lifeTime;  // Lifetime (seconds)
+} Timer;
+
+struct pair_cell_dir
+{
+    Cell cell;
+    int dir;
+};
+
+struct pair_int_int
+{
+    int x;
+    int y;
+};
+
 const int screenWidth = 800;
 const int screenHeight = 450;
 
@@ -210,6 +256,8 @@ int main(void)
                                     LIGHTGRAY,
                                     GRAY,
                                     DARKGRAY};
+
+    // Man data 1
     int startLoc[total_UE][2] = {{30, 30}, {10, 10}, {40, 40}, {20, 20}};
 
     for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
@@ -225,6 +273,7 @@ int main(void)
 
     // NEED TO IMPROVE THIS
 
+    // Man data 2
     int BTS_Data[total_BTS][4] = {{15, 15, 75, 0}, {35, 20, 120, 0}, {50, 10, 90, 0}};
     Color BTS_Color[total_BTS] = {BLUE, GREEN, RED};
 
@@ -245,8 +294,13 @@ int main(void)
     int framesCounter = 0;
 
     int currScreen = 0;
+
+    // activate when cursor in box
     bool mouseOnText = false;
+
+    // activate when click
     bool mouseClick = false;
+
     Rectangle textBox = {60, 60, 80, 30};
 
     while (!WindowShouldClose())
@@ -368,10 +422,12 @@ int main(void)
             DrawText(TextFormat("%d", ListBTS[1].number_of_UE), 10, 45, 10, GREEN);
             DrawText(TextFormat("%d", ListBTS[2].number_of_UE), 10, 55, 10, RED);
             DrawText(TextFormat("Connection Rate : %0.f", getConnectionRate()), screenWidth / 2, 10, 10, WHITE);
+            DrawText(name, 10, 75, 10, WHITE);
 
             drawBTS();
             createGrid();
 
+            // update connections between bts and ue
             for (int i = 0; i < total_UE; i++)
             {
                 struct pair_int_int ue_to_bts;
@@ -410,7 +466,9 @@ int main(void)
             srand(time(NULL));
 
             for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
+            {
                 cdire[i] = newDirection(state[i][0], cdire[i]);
+            }
 
             for (int i = 0; i < sizeof(state) / sizeof(state[0]); i++)
             {
