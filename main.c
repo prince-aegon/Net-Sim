@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
+#include <sqlite3.h>
 #include "raylib.h"
 
 #define MAX_INPUT_CHARS 9
@@ -276,6 +277,31 @@ struct pair_int_int nearestBTS(Cell curr)
 
 int main(void)
 {
+    sqlite3 *DB;
+    int exit_stat = 0;
+    char *sql = "CREATE TABLE UE("
+                "ID INT PRIMARY KEY NOT NULL,"
+                "X  INT             NOT NULL,"
+                "Y  INT             NOT NULL,"
+                "COLOR CHAR(32)             ,"
+                "CONNECTION INT             );";
+
+    exit_stat = sqlite3_open("net-sim.db", &DB);
+
+    char *messaggeError;
+
+    exit_stat = sqlite3_exec(DB, sql, NULL, 0, &messaggeError);
+
+    if (exit_stat != SQLITE_OK)
+    {
+        printf("Error opening db %s \n", sqlite3_errmsg(DB));
+        sqlite3_free(messaggeError);
+        return -1;
+    }
+    else
+    {
+        printf("Table created successfully \n");
+    }
     SetTraceLogCallback(CustomLog);
 
     InitWindow(screenWidth, screenHeight, "Prince");
@@ -487,10 +513,13 @@ int main(void)
                     state[i][0].color = WHITE;
                 }
             }
+
+            // init BTS connection count
             for (int i = 0; i < total_BTS; i++)
             {
                 ListBTS[i].number_of_UE = 0;
             }
+
             for (int i = 0; i < dynamic_UE_count; i++)
             {
                 if (state[i][0].connection > -1)
@@ -509,11 +538,13 @@ int main(void)
 
             srand(time(NULL));
 
+            // get new direction based on curr and state
             for (int i = 0; i < dynamic_UE_count; i++)
             {
                 cdire[i] = newDirection(state[i][0], cdire[i]);
             }
 
+            // move colors across tail
             for (int i = 0; i < dynamic_UE_count; i++)
             {
                 for (int j = trail_bits - 1; j > 0; j--)
@@ -523,11 +554,14 @@ int main(void)
                     state[i][j].color = temp;
                 }
             }
+
+            // update state based on new direction
             for (int i = 0; i < dynamic_UE_count; i++)
             {
                 state[i][0] = update(state[i][0], cdire[i]);
             }
 
+            // set all BTS
             for (int i = 0; i < total_BTS; i++)
             {
                 mark(ListBTS[i].loc);
@@ -539,6 +573,8 @@ int main(void)
     }
 
     CloseWindow();
+
+    sqlite3_close(DB);
 
     return 0;
 }
