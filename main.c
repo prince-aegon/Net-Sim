@@ -11,6 +11,7 @@
 #include "raylib.h"
 
 #define MAX_INPUT_CHARS 9
+#define GET_VARIABLE_NAME(Variable) (#Variable)
 #define PBSTR "############################################################"
 #define PBWIDTH 60
 
@@ -64,6 +65,12 @@ struct pair_cell_dir
     int dir;
 };
 
+struct map
+{
+    int key;
+    char *value;
+};
+
 struct pair_int_int
 {
     int x;
@@ -98,10 +105,26 @@ int frame_tracker = 0;
 
 int ue1 = -1, ue2 = -1;
 
+float validity_update = 0.1;
+
+char *status_update = "none";
+
 BTS ListBTS[total_BTS];
 Cell state[total_UE][trail_bits];
 
 const int cTotalLength = 10;
+
+char *EID[] = {"V001", "C001", "V002", "A001"};
+struct map EIDMapping[total_UE];
+
+void populateEID()
+{
+    for (int i = 0; i < dynamic_UE_count; i++)
+    {
+        EIDMapping[i].key = i;
+        EIDMapping[i].value = EID[i];
+    }
+}
 
 // for sqlite console display
 int callback(void *data, int argc, char **argv, char **azColName)
@@ -115,6 +138,48 @@ int callback(void *data, int argc, char **argv, char **azColName)
     }
 
     printf("\n");
+    return 0;
+}
+
+int callback_get(void *data, int argc, char **argv, char **azColName)
+{
+    int i;
+    // fprintf(stderr, "%s: ", (const char *)data);
+    char *tempEID;
+    int checker = 0;
+    for (i = 0; i < argc; i++)
+    {
+        // printf("%s : %s", azColName[i], argv[i]);
+        if (strcmp(azColName[i], "EID") == 0)
+        {
+            tempEID = argv[i];
+        }
+        if (strcmp(azColName[i], "STATUS") == 0)
+        {
+            checker = atoi(argv[i]);
+        }
+
+        // printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+
+        if (strcmp(azColName[i], "VALIDITY") == 0)
+        {
+            // printf("here : %d \n", argv[i]);
+            int val = atoi(argv[i]);
+            if (val <= validity_update)
+            {
+                // printf("%s : %s \n", azColName[i], val);
+                if (checker != -1)
+                {
+                    printf("Connection for EID : %s has been disabled \n", tempEID);
+                }
+                status_update = tempEID;
+                // printf("status_update : %s \n", status_update);
+                // printf("\n");
+            }
+        }
+    }
+
+    // printf("\n");
     return 0;
 }
 
@@ -461,18 +526,42 @@ int main(void)
     int exit_stat = 0;
     char *messageError;
 
-    char *sql = "CREATE TABLE IF NOT EXISTS UE("
-                "ID INT PRIMARY KEY NOT NULL,"
-                "X  INT             NOT NULL,"
-                "Y  INT             NOT NULL,"
-                "COLOR CHAR(32)             ,"
-                "CONNECTION INT             ,"
-                "ISP INT                    );";
+    char *sql_ue = "CREATE TABLE IF NOT EXISTS UE("
+                   "EID INT PRIMARY KEY NOT NULL,"
+                   "ID INT              NOT NULL,"
+                   "X  INT              NOT NULL,"
+                   "Y  INT              NOT NULL);";
+
+    char *sql_hlr = "CREATE TABLE IF NOT EXISTS HLR("
+                    "EID CHAR(6) PRIMARY KEY NOT NULL,"
+                    "X INT              NOT NULL,"
+                    "Y INT              NOT NULL,"
+                    "ISP CHAR(12)       NOT NULL,"
+                    "STATUS INT         NOT NULL,"
+                    "VALIDITY INT       NOT NULL,"
+                    "CONNECT INT                );";
+
+    /*
+    Each UE has its data in HLR:
+        1. EID      : Equipment ID for BTS to identify
+        2. X        : X Coordinate of the UE
+        3. Y        : Y Coordinate of the UE
+        4. ISP      : ISP of the UE
+        5. Status   : Whether active on network
+        6. Validity : Number of days before disconnection
+        7. Connect  : BTS to which it is connected
+    */
 
     exit_stat = sqlite3_open("net-sim.db", &DB);
+    if (exit_stat != SQLITE_OK)
+    {
+        fprintf(stderr, "rc = %d\n", exit_stat);
+        fprintf(stderr, "sqlite3_open error : %s\n", sqlite3_errmsg(DB));
+        return -1;
+    }
 
     // create ue table
-    exit_stat = sqlite3_exec(DB, sql, NULL, 0, &messageError);
+    exit_stat = sqlite3_exec(DB, sql_ue, NULL, 0, &messageError);
 
     if (exit_stat != SQLITE_OK)
     {
@@ -482,14 +571,30 @@ int main(void)
     }
     else
     {
-        printf("Table created successfully \n");
+        printf("Table %s created successfully \n", GET_VARIABLE_NAME(sql_ue));
     }
 
-    // insert dummy values
-    char *sql_insert = "INSERT OR IGNORE INTO UE VALUES(1, 20, 10, 'WHITE', 2, 0);"
-                       "INSERT OR IGNORE INTO UE VALUES(2, 5, 5, 'BLUE', 4, 1);";
+    // create hlr table
+    exit_stat = sqlite3_exec(DB, sql_hlr, NULL, 0, &messageError);
 
-    exit_stat = sqlite3_exec(DB, sql_insert, NULL, 0, &messageError);
+    if (exit_stat != SQLITE_OK)
+    {
+        printf("Error opening db %s \n", sqlite3_errmsg(DB));
+        sqlite3_free(messageError);
+        return -1;
+    }
+    else
+    {
+        printf("Table %s created successfully \n", GET_VARIABLE_NAME(sql_hlr));
+    }
+
+    // insert dummy values into ue table
+    char *sql_insert_ue = "INSERT OR IGNORE INTO UE VALUES('V001', 1, 20, 10);"
+                          "INSERT OR IGNORE INTO UE VALUES('C001', 2, 5, 5);"
+                          "INSERT OR IGNORE INTO UE VALUES('V002', 3, 10, 10);"
+                          "INSERT OR IGNORE INTO UE VALUES('A001', 4, 15, 15);";
+
+    exit_stat = sqlite3_exec(DB, sql_insert_ue, NULL, 0, &messageError);
 
     if (exit_stat != SQLITE_OK)
     {
@@ -503,10 +608,33 @@ int main(void)
     }
     else
     {
-        printf("Insertion successfully \n");
+        printf("Insertion into %s successfully \n", GET_VARIABLE_NAME(sql_ue));
     }
 
-    // disply the db
+    // insert dummy values into hlr table
+    char *sql_insert_hlr = "INSERT OR IGNORE INTO HLR VALUES('V001', 20, 10, 'VERIZON', 1, 11, 1);"
+                           "INSERT OR IGNORE INTO HLR VALUES('C001', 5,  5,  'COMCAST', 1, 12, 2);"
+                           "INSERT OR IGNORE INTO HLR VALUES('V002', 10, 10, 'VERIZOM', 0, -3, 0);"
+                           "INSERT OR IGNORE INTO HLR VALUES('A001', 15, 15, 'ATnT',    1,  2, 1);";
+
+    exit_stat = sqlite3_exec(DB, sql_insert_hlr, NULL, 0, &messageError);
+
+    if (exit_stat != SQLITE_OK)
+    {
+
+        fprintf(stderr, "SQL error: %s\n", messageError);
+
+        sqlite3_free(messageError);
+        sqlite3_close(DB);
+
+        return 1;
+    }
+    else
+    {
+        printf("Insertion into %s successfully \n", GET_VARIABLE_NAME(sql_hlr));
+    }
+
+    // disply the ue table
     char *sql_query = "SELECT * FROM UE;";
 
     exit_stat = sqlite3_exec(DB, sql_query, callback, NULL, &messageError);
@@ -526,6 +654,7 @@ int main(void)
         printf("Query passed \n");
     }
 
+    populateEID();
     SetTraceLogCallback(CustomLog);
 
     InitWindow(screenWidth, screenHeight, "Net-Sim");
@@ -763,7 +892,7 @@ int main(void)
 
             // update connections between bts and ue
             // if
-            for (int i = 0; i < total_UE; i++)
+            for (int i = 0; i < dynamic_UE_count; i++)
             {
                 struct pair_int_int ue_to_bts;
                 ue_to_bts = nearestBTS(state[i][0]);
@@ -777,6 +906,97 @@ int main(void)
                 {
                     state[i][0].connection = -1;
                     state[i][0].color = WHITE;
+                }
+                char sql_connection_connect[64];
+                sprintf(sql_connection_connect, "UPDATE HLR SET CONNECT=%d WHERE EID = '%s'", state[i][0].connection, EIDMapping[i].value);
+
+                exit_stat = sqlite3_exec(DB, sql_connection_connect, callback, NULL, &messageError);
+
+                if (exit_stat != SQLITE_OK)
+                {
+                    fprintf(stderr, "Failed to set connect data\n");
+                    fprintf(stderr, "SQL error: %s\n", messageError);
+
+                    sqlite3_free(messageError);
+                    sqlite3_close(DB);
+
+                    return 1;
+                }
+                else
+                {
+                    // printf("Connection estabilished with BTS %d \t", state[0][0].connection);
+                }
+            }
+
+            // update validity
+            for (int i = 0; i < dynamic_UE_count; i++)
+            {
+                char sql_validity_update[128];
+                sprintf(sql_validity_update, "UPDATE HLR SET VALIDITY=VALIDITY-%f WHERE EID = '%s' AND VALIDITY >= %f ",
+                        validity_update, EIDMapping[i].value, validity_update);
+
+                exit_stat = sqlite3_exec(DB, sql_validity_update, callback, NULL, &messageError);
+
+                if (exit_stat != SQLITE_OK)
+                {
+                    fprintf(stderr, "Failed to set update validity data\n");
+                    fprintf(stderr, "SQL error: %s\n", messageError);
+
+                    sqlite3_free(messageError);
+                    sqlite3_close(DB);
+
+                    return 1;
+                }
+                else
+                {
+                    // printf("Connection estabilished with BTS %d \t", state[0][0].connection);
+                }
+            }
+            for (int i = 0; i < dynamic_UE_count; i++)
+            {
+                char sql_display_validity[64];
+                sprintf(sql_display_validity, "SELECT * FROM HLR WHERE EID = '%s'", EIDMapping[i].value);
+                // printf("status 1 : %s : %d\n", status_update, i);
+                exit_stat = sqlite3_exec(DB, sql_display_validity, callback_get, NULL, &messageError);
+                // printf("status 2 : %s : %d\n", status_update, i);
+
+                if (exit_stat != SQLITE_OK)
+                {
+                    fprintf(stderr, "Failed to set update validity data\n");
+                    fprintf(stderr, "SQL error: %s\n", messageError);
+
+                    sqlite3_free(messageError);
+                    sqlite3_close(DB);
+
+                    return 1;
+                }
+                else
+                {
+                    // printf("Connection estabilished with BTS %d \t", state[0][0].connection);
+                }
+                // printf("status 3 : %s : %d\n", status_update, i);
+                if (strcmp(status_update, "none") != 0)
+                {
+                    char sql_update_status[64];
+                    sprintf(sql_update_status, "UPDATE HLR SET STATUS = -1 WHERE EID = '%s'", EIDMapping[i].value);
+
+                    exit_stat = sqlite3_exec(DB, sql_update_status, callback_get, NULL, &messageError);
+
+                    if (exit_stat != SQLITE_OK)
+                    {
+                        fprintf(stderr, "Failed to set update status data\n");
+                        fprintf(stderr, "SQL error: %s\n", messageError);
+
+                        sqlite3_free(messageError);
+                        sqlite3_close(DB);
+
+                        return 1;
+                    }
+                    else
+                    {
+                        // printf("Connection disabled for %s \t", EIDMapping[i].value);
+                    }
+                    status_update = "none";
                 }
             }
 
@@ -830,27 +1050,6 @@ int main(void)
             //     temp1.color = WHITE;
             //     mark(temp1);
             // }
-
-            // template to update db on estabilished connections
-            char sql_connection[64];
-            sprintf(sql_connection, "UPDATE UE SET CONNECTION=%d WHERE ID = 1", state[0][0].connection);
-
-            exit_stat = sqlite3_exec(DB, sql_connection, callback, NULL, &messageError);
-
-            if (exit_stat != SQLITE_OK)
-            {
-                fprintf(stderr, "Failed to select data\n");
-                fprintf(stderr, "SQL error: %s\n", messageError);
-
-                sqlite3_free(messageError);
-                sqlite3_close(DB);
-
-                return 1;
-            }
-            else
-            {
-                // printf("Connection estabilished with BTS %d \t", state[0][0].connection);
-            }
 
             // draw line between ue and connected db
             for (int i = 0; i < total_UE; i++)
@@ -909,29 +1108,53 @@ int main(void)
                 state[i][0] = update(state[i][0], cdire[i]);
             }
 
-            // template to update position of ue in db
-            char sql_update[64];
-            sprintf(sql_update, "UPDATE UE SET X=%d, Y=%d WHERE ID = 1", state[0][0].cellX, state[0][0].cellY);
-
-            // printf("sql_update : %s \n", sql_update);
-            // printf("reached here \n");
-
-            exit_stat = sqlite3_exec(DB, sql_update, callback, NULL, &messageError);
-
-            if (exit_stat != SQLITE_OK)
+            // update position in database
+            for (int i = 0; i < dynamic_UE_count; i++)
             {
-                fprintf(stderr, "Failed to select data\n");
-                fprintf(stderr, "SQL error: %s\n", messageError);
+                char sql_update_ue[64], sql_update_hlr[64];
+                sprintf(sql_update_ue, "UPDATE UE SET X=%d, Y=%d WHERE EID = '%s'", state[i][0].cellX, state[i][0].cellY, EIDMapping[i].value);
+                sprintf(sql_update_hlr, "UPDATE HLR SET X=%d, Y=%d WHERE EID = '%s'", state[i][0].cellX, state[i][0].cellY, EIDMapping[i].value);
 
-                sqlite3_free(messageError);
-                sqlite3_close(DB);
+                // printf("sql_update : %s \n", sql_update);
+                // printf("reached here \n");
 
-                return 1;
-            }
-            else
-            {
-                // printf("Query passed \n");
-                // printf("connect 1_3 : %d \n", connect_1_3);
+                // sql command to update ue
+                exit_stat = sqlite3_exec(DB, sql_update_ue, callback, NULL, &messageError);
+
+                if (exit_stat != SQLITE_OK)
+                {
+                    fprintf(stderr, "Failed to select data for %s \n", GET_VARIABLE_NAME(sql_update_ue));
+                    fprintf(stderr, "SQL error: %s\n", messageError);
+
+                    sqlite3_free(messageError);
+                    sqlite3_close(DB);
+
+                    return 1;
+                }
+                else
+                {
+                    // printf("Query passed \n");
+                    // printf("connect 1_3 : %d \n", connect_1_3);
+                }
+
+                // sql command to update hlr
+                exit_stat = sqlite3_exec(DB, sql_update_hlr, callback, NULL, &messageError);
+
+                if (exit_stat != SQLITE_OK)
+                {
+                    fprintf(stderr, "Failed to select data for %s \n", GET_VARIABLE_NAME(sql_update_hlr));
+                    fprintf(stderr, "SQL error: %s\n", messageError);
+
+                    sqlite3_free(messageError);
+                    sqlite3_close(DB);
+
+                    return 1;
+                }
+                else
+                {
+                    // printf("Query passed \n");
+                    // printf("connect 1_3 : %d \n", connect_1_3);
+                }
             }
             for (int i = 0; i < dynamic_UE_count; i++)
             {
