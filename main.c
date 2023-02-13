@@ -11,7 +11,7 @@
 #include "raylib.h"
 
 #define MAX_INPUT_CHARS 9
-#define PBSTR "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+#define PBSTR "############################################################"
 #define PBWIDTH 60
 
 enum Direction
@@ -396,8 +396,12 @@ void *user_input(void *arg)
     char c;
     while (1)
     {
-        c = getchar();
-        if (c == 'p')
+        char str[10];
+        fgets(str, 10, stdin);
+
+        str[strcspn(str, "\n")] = 0;
+
+        if (strcmp(str, "connect") == 0)
         {
             sem_wait(mysemp);
             printf("Enter ue's to connect : ");
@@ -754,8 +758,8 @@ int main(void)
                 {
                     if (frame_tracker - currFrame == 1)
                     {
-                        printf("Connection Established... \n");
                         printProgress(1);
+                        printf("Connection Established... \n");
                     }
                     int test_n;
                     state[ue1 - 1][0].flag = 0;
