@@ -102,8 +102,8 @@ BTS ListBTS[total_BTS];
 Cell state[total_UE][trail_bits];
 
 const int cTotalLength = 10;
-// terminating it
 
+// for sqlite console display
 int callback(void *data, int argc, char **argv, char **azColName)
 {
     int i;
@@ -118,6 +118,7 @@ int callback(void *data, int argc, char **argv, char **azColName)
     return 0;
 }
 
+// progress bar
 void printProgress(double percentage)
 {
     int val = (int)(percentage * 100);
@@ -127,6 +128,7 @@ void printProgress(double percentage)
     fflush(stdout);
 }
 
+// progress bar better [not used]
 void printProgress1(float lProgress)
 {
     char *lBuffer = malloc((cTotalLength + 1) * sizeof *lBuffer); // array to fit 10 chars + '\0'
@@ -145,6 +147,7 @@ void printProgress1(float lProgress)
     free(lBuffer);
 }
 
+// timer for raylib
 void StartTimer(Timer *timer, double lifetime)
 {
     timer->startTime = GetTime();
@@ -161,6 +164,7 @@ double GetElapsed(Timer timer)
     return GetTime() - timer.startTime;
 }
 
+// logger for raylib
 void CustomLog(int msgType, const char *text, va_list args)
 {
     char timeStr[64] = {0};
@@ -192,6 +196,7 @@ void CustomLog(int msgType, const char *text, va_list args)
     printf("\n");
 }
 
+// init grid
 void createGrid()
 {
     Point points[4];
@@ -217,6 +222,7 @@ void createGrid()
     }
 }
 
+// convert values in cell format to pixel format
 Point cell_to_pixel(Cell cell)
 {
     Point ret;
@@ -226,13 +232,15 @@ Point cell_to_pixel(Cell cell)
     return ret;
 }
 
-void numeralMark(Cell cell)
+// display id of ue
+void ueID(Cell cell)
 {
     char buf[4];
     snprintf(buf, sizeof buf, "%d", (cell.id + 1));
     DrawText(buf, (cell_to_pixel(cell)).pointX + 3, (cell_to_pixel(cell)).pointY - 3, 5, WHITE);
 }
 
+// validator for ue
 struct pair_cell_dir validate(Cell curr)
 {
     struct pair_cell_dir validator;
@@ -285,6 +293,7 @@ float getConnectionRate()
     return (total * 100) / (dynamic_UE_count);
 }
 
+// mark cells
 void mark(Cell curr)
 {
     DrawRectangle(horizontal_sep + lineGap * curr.cellX, vertical_sep + lineGap * curr.cellY, lineGap, lineGap, curr.color);
@@ -295,6 +304,7 @@ void initBTS(BTS bts)
     DrawCircleLines(horizontal_sep + lineGap * bts.loc.cellX + 0.5 * lineGap, vertical_sep + lineGap * bts.loc.cellY + 0.5 * lineGap, bts.radius, bts.loc.color);
 }
 
+// update ue path
 Cell update(Cell curr, int dir)
 {
     if (curr.flag == 0)
@@ -331,6 +341,7 @@ void drawBTS()
     }
 }
 
+// get new direction for ue
 int newDirection(Cell curr, int cDir)
 {
     struct pair_cell_dir temp_pair;
@@ -356,13 +367,29 @@ int newDirection(Cell curr, int cDir)
     }
 }
 
-void connectUEtoBTS(Cell ue, Cell BTS)
+void connectUEtoBTS(Cell ue, Cell BTS, int connection_type)
 {
-    Point point_ue = cell_to_pixel(ue);
     Point point_bts = cell_to_pixel(BTS);
-    DrawLine(point_ue.pointX, point_ue.pointY, point_bts.pointX, point_bts.pointY, BTS.color);
+    Point point_ue = cell_to_pixel(ue);
+
+    // not connected to another ue
+    if (connection_type == 0)
+    {
+        DrawLine(point_ue.pointX, point_ue.pointY, point_bts.pointX, point_bts.pointY, BTS.color);
+    }
+    else
+    {
+        DrawLine(point_ue.pointX, point_ue.pointY, point_bts.pointX, point_bts.pointY, PURPLE);
+    }
 }
 
+// used when two ue's are connected
+void connectBTStoBTS(Cell BTS1, Cell BTS2)
+{
+    Point point_bts1 = cell_to_pixel(BTS1);
+    Point point_bts2 = cell_to_pixel(BTS2);
+    DrawLine(point_bts1.pointX, point_bts1.pointY, point_bts2.pointX, point_bts2.pointY, PURPLE);
+}
 struct pair_int_int nearestBTS(Cell curr)
 {
     struct pair_int_int ret;
@@ -386,11 +413,13 @@ struct pair_int_int nearestBTS(Cell curr)
     return ret;
 }
 
+// logistic growth function for progress bar
 float get_progress(int i)
 {
     return 1 / (1 + (56 * pow(2.71, (-0.003 * 100 * i))));
 }
 
+// for user input
 void *user_input(void *arg)
 {
     char c;
@@ -756,6 +785,9 @@ int main(void)
             {
                 if (state[ue1 - 1][0].connection > -1 && state[ue2 - 1][0].connection > -1)
                 {
+                    connectBTStoBTS(ListBTS[state[ue1 - 1][0].connection].loc, ListBTS[state[ue2 - 1][0].connection].loc);
+                    connectUEtoBTS(state[ue1 - 1][0], ListBTS[state[ue1 - 1][0].connection].loc, 1);
+                    connectUEtoBTS(state[ue2 - 1][0], ListBTS[state[ue2 - 1][0].connection].loc, 1);
                     if (frame_tracker - currFrame == 1)
                     {
                         printProgress(1);
@@ -768,7 +800,7 @@ int main(void)
                         currFrame = frame_tracker;
                     else
                     {
-                        if (frame_tracker - currFrame >= 10)
+                        if (frame_tracker - currFrame >= 50)
                         {
                             printf("Disconnecting... \n");
                             state[ue1 - 1][0].flag = 1;
@@ -823,7 +855,10 @@ int main(void)
             // draw line between ue and connected db
             for (int i = 0; i < total_UE; i++)
             {
-                connectUEtoBTS(state[i][0], ListBTS[state[i][0].connection].loc);
+                if (ue1 != i + 1 && ue2 != i + 1)
+                {
+                    connectUEtoBTS(state[i][0], ListBTS[state[i][0].connection].loc, 0);
+                }
             }
 
             // init BTS connection count
@@ -900,7 +935,7 @@ int main(void)
             }
             for (int i = 0; i < dynamic_UE_count; i++)
             {
-                numeralMark(state[i][0]);
+                ueID(state[i][0]);
             }
             // set all BTS
             for (int i = 0; i < total_BTS; i++)
