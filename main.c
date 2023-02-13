@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 #include <stdlib.h>
 #include <sqlite3.h>
@@ -6,9 +7,12 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <math.h>
 #include "raylib.h"
 
 #define MAX_INPUT_CHARS 9
+#define PBSTR "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+#define PBWIDTH 60
 
 enum Direction
 {
@@ -87,6 +91,8 @@ const int trail_bits = 4;
 
 const int targetfps = 10;
 
+int progress = 0;
+
 int dynamic_UE_count = total_UE;
 int frame_tracker = 0;
 
@@ -94,6 +100,9 @@ int ue1 = -1, ue2 = -1;
 
 BTS ListBTS[total_BTS];
 Cell state[total_UE][trail_bits];
+
+const int cTotalLength = 10;
+// terminating it
 
 int callback(void *data, int argc, char **argv, char **azColName)
 {
@@ -107,6 +116,33 @@ int callback(void *data, int argc, char **argv, char **azColName)
 
     printf("\n");
     return 0;
+}
+
+void printProgress(double percentage)
+{
+    int val = (int)(percentage * 100);
+    int lpad = (int)(percentage * PBWIDTH);
+    int rpad = PBWIDTH - lpad;
+    printf("\r%3d%% [%.*s%*s]", val, lpad, PBSTR, rpad, "");
+    fflush(stdout);
+}
+
+void printProgress1(float lProgress)
+{
+    char *lBuffer = malloc((cTotalLength + 1) * sizeof *lBuffer); // array to fit 10 chars + '\0'
+    lBuffer[cTotalLength] = '\0';
+    // float lProgress = 0.3;
+
+    int lFilledLength = lProgress * cTotalLength;
+
+    memset(lBuffer, 'X', lFilledLength);                                // filling filled part
+    memset(lBuffer + lFilledLength, '-', cTotalLength - lFilledLength); // filling empty part
+    printf("\r[%s] %.1f%%", lBuffer, lProgress * 100);                  // same princip as with the CPP method
+
+    // or you can combine it to a single line if you want to flex ;)
+    // printf("\r[%s] %.1f%%", (char*)memset(memset(lBuffer, 'X', lFullLength) + lFullLength, '-', cTotalLength - lFullLength) - lFullLength, lProgress * 100);
+
+    free(lBuffer);
 }
 
 void StartTimer(Timer *timer, double lifetime)
@@ -348,6 +384,11 @@ struct pair_int_int nearestBTS(Cell curr)
     ret.x = min_rad;
     ret.y = min_rad_index;
     return ret;
+}
+
+float get_progress(int i)
+{
+    return 1 / (1 + (56 * pow(2.71, (-0.003 * 100 * i))));
 }
 
 void *user_input(void *arg)
@@ -711,6 +752,11 @@ int main(void)
             {
                 if (state[ue1 - 1][0].connection > -1 && state[ue2 - 1][0].connection > -1)
                 {
+                    if (frame_tracker - currFrame == 1)
+                    {
+                        printf("Connection Established... \n");
+                        printProgress(1);
+                    }
                     int test_n;
                     state[ue1 - 1][0].flag = 0;
                     state[ue2 - 1][0].flag = 0;
@@ -720,13 +766,23 @@ int main(void)
                     {
                         if (frame_tracker - currFrame >= 10)
                         {
+                            printf("Disconnecting... \n");
                             state[ue1 - 1][0].flag = 1;
                             state[ue2 - 1][0].flag = 1;
                             currFrame = 0;
                             ue1 = -1;
                             ue2 = -1;
+                            progress = 0;
+                            printf("Disconnected successfully... \n");
                         }
                     }
+                }
+                else
+                {
+                    float value = get_progress(progress);
+                    printProgress(value);
+                    progress++;
+                    // fflush(stdout);
                 }
             }
 
