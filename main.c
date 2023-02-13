@@ -2,6 +2,10 @@
 #include <time.h>
 #include <stdlib.h>
 #include <sqlite3.h>
+#include <semaphore.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <pthread.h>
 #include "raylib.h"
 
 #define MAX_INPUT_CHARS 9
@@ -28,11 +32,13 @@ typedef struct
 
 typedef struct
 {
+    int id;
     int cellX;
     int cellY;
     Color color;
     int connection;
     ISP nodeIsp;
+    int flag;
 } Cell;
 
 typedef struct
@@ -60,6 +66,13 @@ struct pair_int_int
     int y;
 };
 
+sem_t *mysemp;
+int oflag = O_CREAT;
+mode_t mode = 0666;
+const char semname[] = "semname";
+unsigned int value = 1;
+int sts;
+
 const int screenWidth = 800;
 const int screenHeight = 450;
 
@@ -72,7 +85,12 @@ const int total_UE = 4;
 const int total_BTS = 3;
 const int trail_bits = 4;
 
+const int targetfps = 10;
+
 int dynamic_UE_count = total_UE;
+int frame_tracker = 0;
+
+int ue1 = -1, ue2 = -1;
 
 BTS ListBTS[total_BTS];
 Cell state[total_UE][trail_bits];
@@ -172,6 +190,13 @@ Point cell_to_pixel(Cell cell)
     return ret;
 }
 
+void numeralMark(Cell cell)
+{
+    char buf[4];
+    snprintf(buf, sizeof buf, "%d", (cell.id + 1));
+    DrawText(buf, (cell_to_pixel(cell)).pointX + 3, (cell_to_pixel(cell)).pointY - 3, 5, WHITE);
+}
+
 struct pair_cell_dir validate(Cell curr)
 {
     struct pair_cell_dir validator;
@@ -236,23 +261,30 @@ void initBTS(BTS bts)
 
 Cell update(Cell curr, int dir)
 {
-    if (dir == 0)
+    if (curr.flag == 0)
     {
-        curr.cellY--;
-    }
-    else if (dir == 1)
-    {
-        curr.cellX++;
-    }
-    else if (dir == 2)
-    {
-        curr.cellY++;
+        return curr;
     }
     else
     {
-        curr.cellX--;
+        if (dir == 0)
+        {
+            curr.cellY--;
+        }
+        else if (dir == 1)
+        {
+            curr.cellX++;
+        }
+        else if (dir == 2)
+        {
+            curr.cellY++;
+        }
+        else
+        {
+            curr.cellX--;
+        }
+        return curr;
     }
-    return curr;
 }
 
 void drawBTS()
@@ -318,8 +350,39 @@ struct pair_int_int nearestBTS(Cell curr)
     return ret;
 }
 
+void *user_input(void *arg)
+{
+    char c;
+    while (1)
+    {
+        c = getchar();
+        if (c == 'p')
+        {
+            sem_wait(mysemp);
+            printf("Enter ue's to connect : ");
+            scanf("%d %d", &ue1, &ue2);
+            sem_post(mysemp);
+        }
+    }
+}
+
 int main(void)
 {
+
+    // init thread to read input while the process in running
+    pthread_t thread;
+
+    mysemp = sem_open(semname, oflag, mode, value);
+
+    if (mysemp == (void *)-1)
+    {
+        perror("sem_open() failed");
+    }
+
+    pthread_create(&thread, NULL, user_input, NULL);
+
+    // init sqlite db to store ue data for bts to fetch in a future version where ue and bts
+    // can't directly access each others data
     sqlite3 *DB;
     int exit_stat = 0;
     char *messageError;
@@ -334,6 +397,7 @@ int main(void)
 
     exit_stat = sqlite3_open("net-sim.db", &DB);
 
+    // create ue table
     exit_stat = sqlite3_exec(DB, sql, NULL, 0, &messageError);
 
     if (exit_stat != SQLITE_OK)
@@ -347,6 +411,7 @@ int main(void)
         printf("Table created successfully \n");
     }
 
+    // insert dummy values
     char *sql_insert = "INSERT OR IGNORE INTO UE VALUES(1, 20, 10, 'WHITE', 2, 0);"
                        "INSERT OR IGNORE INTO UE VALUES(2, 5, 5, 'BLUE', 4, 1);";
 
@@ -367,6 +432,7 @@ int main(void)
         printf("Insertion successfully \n");
     }
 
+    // disply the db
     char *sql_query = "SELECT * FROM UE;";
 
     exit_stat = sqlite3_exec(DB, sql_query, callback, NULL, &messageError);
@@ -388,8 +454,8 @@ int main(void)
 
     SetTraceLogCallback(CustomLog);
 
-    InitWindow(screenWidth, screenHeight, "Prince");
-    SetTargetFPS(10);
+    InitWindow(screenWidth, screenHeight, "Net-Sim");
+    SetTargetFPS(targetfps);
 
     int cdire[total_UE];
 
@@ -402,10 +468,11 @@ int main(void)
                                     DARKGRAY};
 
     // Man data 1
-    int startLoc[total_UE][2] = {{30, 30}, {10, 10}, {40, 40}, {20, 20}};
+    int startLoc[total_UE][2] = {{10, 10}, {20, 20}, {30, 30}, {40, 40}};
     // printf("%s\n", (dynamic_UE_count));
     // printf("%d\n", (trail_bits));
 
+    // init ue in local storage
     for (int i = 0; i < dynamic_UE_count; i++)
     {
         for (int j = 0; j < trail_bits; j++)
@@ -415,6 +482,8 @@ int main(void)
             state[i][j].color = stateColor[j];
             state[i][j].connection = -1;
             state[i][j].nodeIsp = Verizon;
+            state[i][j].flag = 1;
+            state[i][j].id = i;
         }
     }
 
@@ -441,6 +510,7 @@ int main(void)
     int framesCounter = 0;
 
     int currScreen = 0;
+    int currFrame = 0;
 
     // activate when cursor in box
     bool mouseOnText = false;
@@ -448,22 +518,26 @@ int main(void)
     // activate when click
     bool mouseClick = false;
 
+    // bool connect_1_3 = false;
+
     Rectangle textBox = {60, 60, 80, 30};
 
     while (!WindowShouldClose())
     {
-
+        // menu screen
         if (currScreen == 0)
         {
-            if (CheckCollisionPointRec(GetMousePosition(), textBox))
-            {
-                mouseOnText = true;
-            }
-            else
-            {
-                mouseOnText = false;
-            }
+            // [deprecated attempt for selection]
+            // if (CheckCollisionPointRec(GetMousePosition(), textBox))
+            // {
+            //     mouseOnText = true;
+            // }
+            // else
+            // {
+            //     mouseOnText = false;
+            // }
 
+            // check if mouse in box -> make into function
             if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsMouseButtonDown(MOUSE_BUTTON_FORWARD) || IsMouseButtonDown(MOUSE_BUTTON_RIGHT) || IsMouseButtonDown(MOUSE_BUTTON_MIDDLE))
             {
                 Point cursor;
@@ -530,6 +604,20 @@ int main(void)
                 framesCounter = 0;
             }
         }
+        else if (currScreen == 1)
+        {
+
+            // [part of a deprecated implementation]
+            // if (IsKeyPressed(KEY_A) && IsKeyPressed(KEY_B))
+            // {
+            //     connect_1_3 = true;
+            // }
+            // if (IsKeyReleased(KEY_A) && IsKeyReleased(KEY_B))
+            // {
+            //     connect_1_3 = false;
+            // }
+            frame_tracker++;
+        }
 
         BeginDrawing();
 
@@ -574,8 +662,10 @@ int main(void)
                 currScreen = 1;
             }
         }
+        // sim screen
         else if (currScreen == 1)
         {
+            // printf("connect 1_3 : %d \n", connect_1_3);
 
             ClearBackground(BLACK);
 
@@ -616,6 +706,39 @@ int main(void)
                 }
             }
 
+            // from the data recieved from io thread, link the ue's
+            if (ue1 > -1 && ue2 > -1)
+            {
+                if (state[ue1 - 1][0].connection > -1 && state[ue2 - 1][0].connection > -1)
+                {
+                    int test_n;
+                    state[ue1 - 1][0].flag = 0;
+                    state[ue2 - 1][0].flag = 0;
+                    if (currFrame == 0)
+                        currFrame = frame_tracker;
+                    else
+                    {
+                        if (frame_tracker - currFrame >= 10)
+                        {
+                            state[ue1 - 1][0].flag = 1;
+                            state[ue2 - 1][0].flag = 1;
+                            currFrame = 0;
+                            ue1 = -1;
+                            ue2 = -1;
+                        }
+                    }
+                }
+            }
+
+            // if (framesCounter1 < 20)
+            // {
+            //     Cell temp1;
+            //     temp1.cellX = 20;
+            //     temp1.cellY = 15;
+            //     temp1.color = WHITE;
+            //     mark(temp1);
+            // }
+
             // template to update db on estabilished connections
             char sql_connection[64];
             sprintf(sql_connection, "UPDATE UE SET CONNECTION=%d WHERE ID = 1", state[0][0].connection);
@@ -634,7 +757,7 @@ int main(void)
             }
             else
             {
-                printf("Connection estabilished with BTS %d \t", state[0][0].connection);
+                // printf("Connection estabilished with BTS %d \t", state[0][0].connection);
             }
 
             // draw line between ue and connected db
@@ -712,9 +835,13 @@ int main(void)
             }
             else
             {
-                printf("Query passed \n");
+                // printf("Query passed \n");
+                // printf("connect 1_3 : %d \n", connect_1_3);
             }
-
+            for (int i = 0; i < dynamic_UE_count; i++)
+            {
+                numeralMark(state[i][0]);
+            }
             // set all BTS
             for (int i = 0; i < total_BTS; i++)
             {
@@ -729,6 +856,9 @@ int main(void)
     CloseWindow();
 
     sqlite3_close(DB);
+
+    sem_close(mysemp);
+    sem_unlink("semname");
 
     return 0;
 }
