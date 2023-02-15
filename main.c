@@ -105,7 +105,7 @@ int frame_tracker = 0;
 
 int ue1 = -1, ue2 = -1;
 
-float validity_update = 0.1;
+float validity_update = 0.1f;
 
 char *status_update = "none";
 
@@ -171,8 +171,10 @@ int callback_get(void *data, int argc, char **argv, char **azColName)
                 if (checker != -1)
                 {
                     printf("Connection for EID : %s has been disabled \n", tempEID);
+                    status_update = tempEID;
+                    // printf("status : %s \n", status_update);
                 }
-                status_update = tempEID;
+
                 // printf("status_update : %s \n", status_update);
                 // printf("\n");
             }
@@ -538,7 +540,7 @@ int main(void)
                     "Y INT              NOT NULL,"
                     "ISP CHAR(12)       NOT NULL,"
                     "STATUS INT         NOT NULL,"
-                    "VALIDITY INT       NOT NULL,"
+                    "VALIDITY REAL       NOT NULL,"
                     "CONNECT INT                );";
 
     /*
@@ -614,8 +616,8 @@ int main(void)
     // insert dummy values into hlr table
     char *sql_insert_hlr = "INSERT OR IGNORE INTO HLR VALUES('V001', 20, 10, 'VERIZON', 1, 11, 1);"
                            "INSERT OR IGNORE INTO HLR VALUES('C001', 5,  5,  'COMCAST', 1, 12, 2);"
-                           "INSERT OR IGNORE INTO HLR VALUES('V002', 10, 10, 'VERIZOM', 0, -3, 0);"
-                           "INSERT OR IGNORE INTO HLR VALUES('A001', 15, 15, 'ATnT',    1,  2, 1);";
+                           "INSERT OR IGNORE INTO HLR VALUES('V002', 10, 10, 'VERIZOM', 0,  5, 0);"
+                           "INSERT OR IGNORE INTO HLR VALUES('A001', 15, 15, 'ATnT',    1,  27, 1);";
 
     exit_stat = sqlite3_exec(DB, sql_insert_hlr, NULL, 0, &messageError);
 
@@ -658,6 +660,7 @@ int main(void)
     SetTraceLogCallback(CustomLog);
 
     InitWindow(screenWidth, screenHeight, "Net-Sim");
+    SetWindowPosition(50, 100);
     SetTargetFPS(targetfps);
 
     int cdire[total_UE];
@@ -826,8 +829,8 @@ int main(void)
 
         if (currScreen == 0)
         {
-            ClearBackground(WHITE);
-            DrawText("WELCOME!!!", 20, 20, 15, BLACK);
+            ClearBackground(BLACK);
+            DrawText("WELCOME!!!", 20, 20, 15, WHITE);
 
             DrawRectangleRec(textBox, LIGHTGRAY);
             if (mouseClick)
@@ -838,8 +841,8 @@ int main(void)
             {
                 DrawRectangleLines((int)textBox.x, (int)textBox.y, (int)textBox.width, (int)textBox.height, DARKGRAY);
             }
-            DrawText(inUE, (int)textBox.x + 5, (int)textBox.y + 8, 5, MAROON);
-            DrawText("#BTS : ", (int)textBox.x - 40, (int)textBox.y + 10, 5, BLACK);
+            DrawText(inUE, (int)textBox.x + 5, (int)textBox.y + 8, 5, BLACK);
+            DrawText("#BTS : ", (int)textBox.x - 40, (int)textBox.y + 10, 5, WHITE);
 
             // DrawText(TextFormat("INPUT CHARS: %i/%i", letterCount, MAX_INPUT_CHARS), 315, 250, 20, DARKGRAY);
 
@@ -890,6 +893,39 @@ int main(void)
             drawBTS();
             createGrid();
 
+            bool connectPermission[dynamic_UE_count];
+
+            sqlite3_stmt *stmt;
+            int rc;
+            rc = sqlite3_prepare_v2(DB, "SELECT * FROM HLR", -1, &stmt, 0);
+            if (rc != SQLITE_OK)
+            {
+                fprintf(stderr, "Cannot prepare statement: %s\n", sqlite3_errmsg(DB));
+                return 1;
+            }
+            int pos = 0, i = 0;
+            while (sqlite3_step(stmt) == SQLITE_ROW)
+            {
+                int validity = sqlite3_column_int(stmt, 4);
+                // printf("id=%d \n", id);
+                if (validity == -1)
+                {
+                    connectPermission[i] = false;
+                    // uncomment this if you wish to stop ue on end of validity
+                    // state[pos][0].flag = 0;
+                }
+                else
+                {
+                    connectPermission[i] = true;
+                    pos++;
+                }
+                i++;
+            }
+            // for (int i = 0; i < dynamic_UE_count; i++)
+            // {
+            //     printf("%d ", connectPermission[i]);
+            // }
+            // printf("\n");
             // update connections between bts and ue
             // if
             for (int i = 0; i < dynamic_UE_count; i++)
@@ -899,8 +935,19 @@ int main(void)
 
                 if (ue_to_bts.y > -1)
                 {
-                    state[i][0].connection = ue_to_bts.y;
-                    state[i][0].color = ListBTS[ue_to_bts.y].loc.color;
+                    if (connectPermission[i])
+                    {
+                        state[i][0].connection = ue_to_bts.y;
+                        state[i][0].color = ListBTS[ue_to_bts.y].loc.color;
+                    }
+                    else
+                    {
+                        state[i][0].connection = -1;
+                        // DrawLine(horizontal_sep + lineGap * state[i][0].cellX,
+                        //          vertical_sep + lineGap * state[i][0].cellY,
+                        //          horizontal_sep + (lineGap + 1) * state[i][0].cellX,
+                        //          vertical_sep + (lineGap + 1) * state[i][0].cellY, WHITE);
+                    }
                 }
                 else
                 {
@@ -932,8 +979,9 @@ int main(void)
             for (int i = 0; i < dynamic_UE_count; i++)
             {
                 char sql_validity_update[128];
-                sprintf(sql_validity_update, "UPDATE HLR SET VALIDITY=VALIDITY-%f WHERE EID = '%s' AND VALIDITY >= %f ",
-                        validity_update, EIDMapping[i].value, validity_update);
+                sprintf(sql_validity_update, "UPDATE HLR SET VALIDITY=VALIDITY-0.1 WHERE EID = '%s' AND VALIDITY > 0 ",
+                        // validity_update, EIDMapping[i].value, validity_update);
+                        EIDMapping[i].value);
 
                 exit_stat = sqlite3_exec(DB, sql_validity_update, callback, NULL, &messageError);
 
@@ -1081,6 +1129,20 @@ int main(void)
                 for (int j = 0; j < trail_bits; j++)
                 {
                     mark(state[i][j]);
+                    if (!connectPermission[i] && j == 0)
+                    {
+
+                        // for canceling out invalid ue's
+                        DrawLine(cell_to_pixel(state[i][0]).pointX,
+                                 cell_to_pixel(state[i][0]).pointY,
+                                 cell_to_pixel(state[i][0]).pointX + lineGap,
+                                 cell_to_pixel(state[i][0]).pointY + lineGap, BLACK);
+
+                        DrawLine(cell_to_pixel(state[i][0]).pointX + lineGap,
+                                 cell_to_pixel(state[i][0]).pointY,
+                                 cell_to_pixel(state[i][0]).pointX,
+                                 cell_to_pixel(state[i][0]).pointY + lineGap, BLACK);
+                    }
                 }
             }
 
@@ -1172,6 +1234,48 @@ int main(void)
     }
 
     CloseWindow();
+
+    char sql_drop[64];
+    sprintf(sql_drop, "DROP TABLE UE");
+    // printf("status 1 : %s : %d\n", status_update, i);
+    exit_stat = sqlite3_exec(DB, sql_drop, callback_get, NULL, &messageError);
+    // printf("status 2 : %s : %d\n", status_update, i);
+
+    if (exit_stat != SQLITE_OK)
+    {
+        fprintf(stderr, "Failed to set update validity data\n");
+        fprintf(stderr, "SQL error: %s\n", messageError);
+
+        sqlite3_free(messageError);
+        sqlite3_close(DB);
+
+        return 1;
+    }
+    else
+    {
+        // printf("Connection estabilished with BTS %d \t", state[0][0].connection);
+    }
+
+    // char sql_drop[64];
+    sprintf(sql_drop, "DROP TABLE HLR");
+    // printf("status 1 : %s : %d\n", status_update, i);
+    exit_stat = sqlite3_exec(DB, sql_drop, callback_get, NULL, &messageError);
+    // printf("status 2 : %s : %d\n", status_update, i);
+
+    if (exit_stat != SQLITE_OK)
+    {
+        fprintf(stderr, "Failed to set update validity data\n");
+        fprintf(stderr, "SQL error: %s\n", messageError);
+
+        sqlite3_free(messageError);
+        sqlite3_close(DB);
+
+        return 1;
+    }
+    else
+    {
+        // printf("Connection estabilished with BTS %d \t", state[0][0].connection);
+    }
 
     sqlite3_close(DB);
 
