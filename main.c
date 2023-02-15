@@ -103,7 +103,8 @@ int progress = 0;
 int dynamic_UE_count = total_UE;
 int frame_tracker = 0;
 
-int ue1 = -1, ue2 = -1;
+int ue_x = -1, ue1 = -1, ue2 = -1;
+int ue_recharge = 0;
 
 float validity_update = 0.1f;
 
@@ -500,8 +501,15 @@ void *user_input(void *arg)
         if (strcmp(str, "connect") == 0)
         {
             sem_wait(mysemp);
-            printf("Enter ue's to connect : ");
+            printf("Enter EID of UE's u wish to connect : ");
             scanf("%d %d", &ue1, &ue2);
+            sem_post(mysemp);
+        }
+        else if (strcmp(str, "recharge") == 0)
+        {
+            sem_wait(mysemp);
+            printf("Enter EID of UE you wish to recharge and duration(1-100) : ");
+            scanf("%d %d", &ue_x, &ue_recharge);
             sem_post(mysemp);
         }
     }
@@ -558,7 +566,7 @@ int main(void)
     if (exit_stat != SQLITE_OK)
     {
         fprintf(stderr, "rc = %d\n", exit_stat);
-        fprintf(stderr, "sqlite3_open error : %s\n", sqlite3_errmsg(DB));
+        fprintf(stderr, "Cannot open sqlite3 database : %s\n", sqlite3_errmsg(DB));
         return -1;
     }
 
@@ -567,7 +575,7 @@ int main(void)
 
     if (exit_stat != SQLITE_OK)
     {
-        printf("Error opening db %s \n", sqlite3_errmsg(DB));
+        printf("Error creating UE table %s \n", sqlite3_errmsg(DB));
         sqlite3_free(messageError);
         return -1;
     }
@@ -581,7 +589,7 @@ int main(void)
 
     if (exit_stat != SQLITE_OK)
     {
-        printf("Error opening db %s \n", sqlite3_errmsg(DB));
+        printf("Error creating HLR table %s \n", sqlite3_errmsg(DB));
         sqlite3_free(messageError);
         return -1;
     }
@@ -601,7 +609,7 @@ int main(void)
     if (exit_stat != SQLITE_OK)
     {
 
-        fprintf(stderr, "SQL error: %s\n", messageError);
+        fprintf(stderr, "Error pushing def data into UE Table: %s\n", messageError);
 
         sqlite3_free(messageError);
         sqlite3_close(DB);
@@ -624,7 +632,7 @@ int main(void)
     if (exit_stat != SQLITE_OK)
     {
 
-        fprintf(stderr, "SQL error: %s\n", messageError);
+        fprintf(stderr, "Error pushing def data into HLR Table: %s\n", messageError);
 
         sqlite3_free(messageError);
         sqlite3_close(DB);
@@ -926,6 +934,7 @@ int main(void)
             //     printf("%d ", connectPermission[i]);
             // }
             // printf("\n");
+
             // update connections between bts and ue
             // if
             for (int i = 0; i < dynamic_UE_count; i++)
@@ -1000,6 +1009,8 @@ int main(void)
                     // printf("Connection estabilished with BTS %d \t", state[0][0].connection);
                 }
             }
+
+            // check if the ue has a valid subscription
             for (int i = 0; i < dynamic_UE_count; i++)
             {
                 char sql_display_validity[64];
@@ -1023,6 +1034,8 @@ int main(void)
                     // printf("Connection estabilished with BTS %d \t", state[0][0].connection);
                 }
                 // printf("status 3 : %s : %d\n", status_update, i);
+
+                // if the ue does not have a valid subscription, set its status as -1
                 if (strcmp(status_update, "none") != 0)
                 {
                     char sql_update_status[64];
@@ -1051,7 +1064,22 @@ int main(void)
             // from the data recieved from io thread, link the ue's
             if (ue1 > -1 && ue2 > -1)
             {
-                if (state[ue1 - 1][0].connection > -1 && state[ue2 - 1][0].connection > -1)
+
+                // check if either of the device has an invalid subscription
+                if (!connectPermission[ue1 - 1] || !connectPermission[ue2 - 1])
+                {
+                    printf("Unauthorized access \n");
+                    if (!connectPermission[ue1 - 1])
+                        printf("UE with EID : %s has invalid subscription\n", connectPermission[ue1 - 1]);
+                    else
+                        printf("UE with EID : %s has invalid subscription\n", connectPermission[ue2 - 1]);
+
+                    ue1 = -1;
+                    ue2 = -1;
+                }
+
+                // check if both devices are connected
+                else if (state[ue1 - 1][0].connection > -1 && state[ue2 - 1][0].connection > -1)
                 {
                     connectBTStoBTS(ListBTS[state[ue1 - 1][0].connection].loc, ListBTS[state[ue2 - 1][0].connection].loc);
                     connectUEtoBTS(state[ue1 - 1][0], ListBTS[state[ue1 - 1][0].connection].loc, 1);
@@ -1081,6 +1109,8 @@ int main(void)
                         }
                     }
                 }
+
+                // else run the progress bar
                 else
                 {
                     float value = get_progress(progress);
@@ -1088,6 +1118,37 @@ int main(void)
                     progress++;
                     // fflush(stdout);
                 }
+            }
+
+            // if ue_recharge is positive means a request has been recieved
+            if (ue_recharge > 0)
+            {
+                char sql_recharge[64];
+                sprintf(sql_recharge, "UPDATE HLR SET VALIDITY=%d, STATUS=1 WHERE EID = '%s'", ue_recharge, EIDMapping[ue_x - 1].value);
+
+                // printf("sql_update : %s \n", sql_update);
+                // printf("reached here \n");
+
+                // sql command to update ue
+                exit_stat = sqlite3_exec(DB, sql_recharge, callback, NULL, &messageError);
+
+                if (exit_stat != SQLITE_OK)
+                {
+                    fprintf(stderr, "Failed to update validity and status data for %s \n", GET_VARIABLE_NAME(sql_recharge));
+                    fprintf(stderr, "SQL error: %s\n", messageError);
+
+                    sqlite3_free(messageError);
+                    sqlite3_close(DB);
+
+                    return 1;
+                }
+                else
+                {
+                    printf("Success!! \n");
+                }
+                printf("Recharge successful for %d on EID %s \n", ue_recharge, EIDMapping[ue_x - 1].value);
+                ue_recharge = 0;
+                ue_x = -1;
             }
 
             // if (framesCounter1 < 20)
