@@ -84,8 +84,8 @@ const char semname[] = "semname";
 unsigned int value = 1;
 int sts;
 
-const int screenWidth = 800;
-const int screenHeight = 450;
+const int screenWidth = 1000;
+const int screenHeight = 800;
 
 const int vertical_sep = 50;
 const int horizontal_sep = 75;
@@ -874,23 +874,23 @@ int main(void)
         if (currScreen == 0)
         {
             ClearBackground(GetColor(0x052c46ff));
-            DrawText("WELCOME!!!", 20, 20, 15, WHITE);
+            // DrawText("WELCOME!!!", 20, 20, 15, WHITE);
 
             // Draw background image twice
             // NOTE: Texture is scaled twice its size
-            DrawTextureEx(background, (Vector2){scrollingBack, 20}, 0.0f, 2.0f, WHITE);
+            DrawTextureEx(background, (Vector2){scrollingBack, 250}, 0.0f, 2.0f, WHITE);
             DrawTextureEx(background, (Vector2){background.width * 2 + scrollingBack, 20}, 0.0f, 2.0f, WHITE);
 
             // Draw midground image twice
-            DrawTextureEx(midground, (Vector2){scrollingMid, 20}, 0.0f, 2.0f, WHITE);
+            DrawTextureEx(midground, (Vector2){scrollingMid, 325}, 0.0f, 2.0f, WHITE);
             DrawTextureEx(midground, (Vector2){midground.width * 2 + scrollingMid, 20}, 0.0f, 2.0f, WHITE);
 
             // Draw foreground image twice
-            DrawTextureEx(foreground, (Vector2){scrollingFore, 70}, 0.0f, 2.0f, WHITE);
+            DrawTextureEx(foreground, (Vector2){scrollingFore, 420}, 0.0f, 2.0f, WHITE);
             DrawTextureEx(foreground, (Vector2){foreground.width * 2 + scrollingFore, 70}, 0.0f, 2.0f, WHITE);
 
             DrawText("NET - SIM", 10, 10, 20, RED);
-            DrawText(" Sarthak Jha (@prince-aegon)", screenWidth - 330, screenHeight - 20, 10, RAYWHITE);
+            DrawText(" Sarthak Jha (@prince-aegon)", screenWidth - 200, screenHeight - 20, 10, RAYWHITE);
 
             // uncomment for box
             // DrawRectangleRec(textBox, LIGHTGRAY);
