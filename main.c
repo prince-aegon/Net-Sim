@@ -96,7 +96,8 @@ const int total_UE = 4;
 const int total_BTS = 3;
 const int trail_bits = 4;
 
-const int targetfps = 10;
+const int targetfpsSim = 10;
+const int targetfpsMenu = 60;
 
 int progress = 0;
 
@@ -622,10 +623,10 @@ int main(void)
     }
 
     // insert dummy values into hlr table
-    char *sql_insert_hlr = "INSERT OR IGNORE INTO HLR VALUES('V001', 20, 10, 'VERIZON', 1, 11, 1);"
-                           "INSERT OR IGNORE INTO HLR VALUES('C001', 5,  5,  'COMCAST', 1, 12, 2);"
-                           "INSERT OR IGNORE INTO HLR VALUES('V002', 10, 10, 'VERIZOM', 0,  5, 0);"
-                           "INSERT OR IGNORE INTO HLR VALUES('A001', 15, 15, 'ATnT',    1,  27, 1);";
+    char *sql_insert_hlr = "INSERT OR IGNORE INTO HLR VALUES('V001', 20, 10, 'VERIZON', 1, 2000, 1);"
+                           "INSERT OR IGNORE INTO HLR VALUES('C001', 5,  5,  'COMCAST', 1, 2000, 2);"
+                           "INSERT OR IGNORE INTO HLR VALUES('V002', 10, 10, 'VERIZOM', 0,  2000, 0);"
+                           "INSERT OR IGNORE INTO HLR VALUES('A001', 15, 15, 'ATnT',    1,  2000, 1);";
 
     exit_stat = sqlite3_exec(DB, sql_insert_hlr, NULL, 0, &messageError);
 
@@ -667,9 +668,23 @@ int main(void)
     populateEID();
     SetTraceLogCallback(CustomLog);
 
+    // if you want dynamic scaling
+    // SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+
     InitWindow(screenWidth, screenHeight, "Net-Sim");
-    SetWindowPosition(50, 100);
-    SetTargetFPS(targetfps);
+
+    // these don't work during resize and only when the resize has completed
+    // InitWindow(GetScreenWidth(), GetScreenHeight(), "Net-Sim");
+    // SetWindowPosition(50, 100);
+    SetTargetFPS(targetfpsSim);
+
+    Texture2D background = LoadTexture("assets/cyberpunk_street_background.png");
+    Texture2D midground = LoadTexture("assets/cyberpunk_street_midground.png");
+    Texture2D foreground = LoadTexture("assets/cyberpunk_street_foreground.png");
+
+    float scrollingBack = 0.0f;
+    float scrollingMid = 0.0f;
+    float scrollingFore = 0.0f;
 
     int cdire[total_UE];
 
@@ -738,9 +753,28 @@ int main(void)
 
     while (!WindowShouldClose())
     {
-        // menu screen
+        // menu screen - non-display
         if (currScreen == 0)
         {
+            // SetTargetFPS(targetfpsMenu);
+
+            scrollingBack -= 0.1f;
+            scrollingMid -= 0.5f;
+            scrollingFore -= 1.0f;
+
+            // NOTE: Texture is scaled twice its size, so it sould be considered on scrolling
+            if (scrollingBack <= -background.width * 2)
+            {
+                scrollingBack = 0;
+            }
+            if (scrollingMid <= -midground.width * 2)
+            {
+                scrollingMid = 0;
+            }
+            if (scrollingFore <= -foreground.width * 2)
+            {
+                scrollingFore = 0;
+            }
             // [deprecated attempt for selection]
             // if (CheckCollisionPointRec(GetMousePosition(), textBox))
             // {
@@ -820,6 +854,7 @@ int main(void)
         }
         else if (currScreen == 1)
         {
+            // SetTargetFPS(targetfpsSim);
 
             // [part of a deprecated implementation]
             // if (IsKeyPressed(KEY_A) && IsKeyPressed(KEY_B))
@@ -835,22 +870,45 @@ int main(void)
 
         BeginDrawing();
 
+        // menu screen - display
         if (currScreen == 0)
         {
-            ClearBackground(BLACK);
+            ClearBackground(GetColor(0x052c46ff));
             DrawText("WELCOME!!!", 20, 20, 15, WHITE);
 
-            DrawRectangleRec(textBox, LIGHTGRAY);
-            if (mouseClick)
-            {
-                DrawRectangleLines((int)textBox.x, (int)textBox.y, (int)textBox.width, (int)textBox.height, RED);
-            }
-            else
-            {
-                DrawRectangleLines((int)textBox.x, (int)textBox.y, (int)textBox.width, (int)textBox.height, DARKGRAY);
-            }
-            DrawText(inUE, (int)textBox.x + 5, (int)textBox.y + 8, 5, BLACK);
-            DrawText("#BTS : ", (int)textBox.x - 40, (int)textBox.y + 10, 5, WHITE);
+            // Draw background image twice
+            // NOTE: Texture is scaled twice its size
+            DrawTextureEx(background, (Vector2){scrollingBack, 20}, 0.0f, 2.0f, WHITE);
+            DrawTextureEx(background, (Vector2){background.width * 2 + scrollingBack, 20}, 0.0f, 2.0f, WHITE);
+
+            // Draw midground image twice
+            DrawTextureEx(midground, (Vector2){scrollingMid, 20}, 0.0f, 2.0f, WHITE);
+            DrawTextureEx(midground, (Vector2){midground.width * 2 + scrollingMid, 20}, 0.0f, 2.0f, WHITE);
+
+            // Draw foreground image twice
+            DrawTextureEx(foreground, (Vector2){scrollingFore, 70}, 0.0f, 2.0f, WHITE);
+            DrawTextureEx(foreground, (Vector2){foreground.width * 2 + scrollingFore, 70}, 0.0f, 2.0f, WHITE);
+
+            DrawText("NET - SIM", 10, 10, 20, RED);
+            DrawText(" Sarthak Jha (@prince-aegon)", screenWidth - 330, screenHeight - 20, 10, RAYWHITE);
+
+            // uncomment for box
+            // DrawRectangleRec(textBox, LIGHTGRAY);
+            // if (mouseClick)
+            // {
+            //     DrawRectangleLines((int)textBox.x, (int)textBox.y, (int)textBox.width, (int)textBox.height, RED);
+            // }
+            // else
+            // {
+            //     DrawRectangleLines((int)textBox.x, (int)textBox.y, (int)textBox.width, (int)textBox.height, DARKGRAY);
+            // }
+
+            // uncomment for text
+
+            //  DrawText(inUE, (int)textBox.x + 5, (int)textBox.y + 8, 5, BLACK);
+            //  DrawText("#BTS : ", (int)textBox.x - 40, (int)textBox.y + 10, 5, WHITE);
+
+            DrawText("PRESS 'ENTER' TO START", 10, 50, 13, MAROON);
 
             // DrawText(TextFormat("INPUT CHARS: %i/%i", letterCount, MAX_INPUT_CHARS), 315, 250, 20, DARKGRAY);
 
@@ -859,8 +917,11 @@ int main(void)
             //     if (letterCount < MAX_INPUT_CHARS)
             //     {
             // Draw blinking underscore char
-            if (((framesCounter / 10) % 2) == 0)
-                DrawText(" |", (int)textBox.x + 4 + MeasureText(inUE, 5), (int)textBox.y + 8, 5, MAROON);
+
+            // uncomment for flashing textbar
+            // if (((framesCounter / 10) % 2) == 0)
+            //     DrawText(" |", (int)textBox.x + 4 + MeasureText(inUE, 5), (int)textBox.y + 8, 5, MAROON);
+
             //     }
             //     else
             //     {
@@ -872,11 +933,13 @@ int main(void)
             // takes delay for some reason
             if (IsKeyPressed(KEY_ENTER))
             {
-                dynamic_UE_count = atoi(inUE);
+                // dynamic_UE_count = atoi(inUE);
+
                 currScreen = 1;
             }
         }
-        // sim screen
+
+        // sim screen - display
         else if (currScreen == 1)
         {
             // printf("connect 1_3 : %d \n", connect_1_3);
@@ -1070,9 +1133,9 @@ int main(void)
                 {
                     printf("Unauthorized access \n");
                     if (!connectPermission[ue1 - 1])
-                        printf("UE with EID : %s has invalid subscription\n", connectPermission[ue1 - 1]);
+                        printf("UE with EID : %s has invalid subscription\n", EIDMapping[ue1 - 1].value);
                     else
-                        printf("UE with EID : %s has invalid subscription\n", connectPermission[ue2 - 1]);
+                        printf("UE with EID : %s has invalid subscription\n", EIDMapping[ue2 - 1].value);
 
                     ue1 = -1;
                     ue2 = -1;
@@ -1096,7 +1159,7 @@ int main(void)
                         currFrame = frame_tracker;
                     else
                     {
-                        if (frame_tracker - currFrame >= 50)
+                        if (frame_tracker - currFrame >= 150)
                         {
                             printf("Disconnecting... \n");
                             state[ue1 - 1][0].flag = 1;
@@ -1293,6 +1356,12 @@ int main(void)
 
         EndDrawing();
     }
+
+    // De-Initialization
+    //--------------------------------------------------------------------------------------
+    UnloadTexture(background); // Unload background texture
+    UnloadTexture(midground);  // Unload midground texture
+    UnloadTexture(foreground); // Unload foreground texture
 
     CloseWindow();
 
