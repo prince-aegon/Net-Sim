@@ -77,6 +77,18 @@ struct pair_int_int
     int y;
 };
 
+typedef struct node
+{
+    struct pair_int_int data;
+    struct node *next;
+} Node;
+
+typedef struct linked_list
+{
+    Node *head;
+} LinkedList;
+
+// semaphore parameters
 sem_t *mysemp;
 int oflag = O_CREAT;
 mode_t mode = 0666;
@@ -93,7 +105,7 @@ const int horizontal_sep = 75;
 const int lineGap = 10;
 
 const int total_UE = 4;
-const int total_BTS = 3;
+const int total_BTS = 6;
 const int trail_bits = 4;
 
 const int targetfpsSim = 10;
@@ -104,7 +116,8 @@ int progress = 0;
 int dynamic_UE_count = total_UE;
 int frame_tracker = 0;
 
-int ue_x = -1, ue1 = -1, ue2 = -1;
+// conenction related
+int ue_x = -1, ue1_g = -1, ue2_g = -1;
 int ue_recharge = 0;
 
 float validity_update = 0.1f;
@@ -118,6 +131,8 @@ const int cTotalLength = 10;
 
 char *EID[] = {"V001", "C001", "V002", "A001"};
 struct map EIDMapping[total_UE];
+
+LinkedList *list;
 
 void populateEID()
 {
@@ -262,6 +277,102 @@ void CustomLog(int msgType, const char *text, va_list args)
     }
 
     vprintf(text, args);
+    printf("\n");
+}
+
+LinkedList *create_list()
+{
+    LinkedList *list = (LinkedList *)malloc(sizeof(LinkedList));
+    list->head = NULL;
+    return list;
+}
+
+void add_node(LinkedList *list, struct pair_int_int data)
+{
+    Node *new_node = (Node *)malloc(sizeof(Node));
+    new_node->data = data;
+    new_node->next = NULL;
+    if (list->head == NULL)
+    {
+        list->head = new_node;
+    }
+    else
+    {
+        Node *current = list->head;
+        while (current->next != NULL)
+        {
+            current = current->next;
+        }
+        current->next = new_node;
+    }
+}
+
+void insert_node(LinkedList *list, struct pair_int_int data, int position)
+{
+    Node *new_node = (Node *)malloc(sizeof(Node));
+    new_node->data = data;
+    new_node->next = NULL;
+    if (position == 0)
+    {
+        new_node->next = list->head;
+        list->head = new_node;
+    }
+    else
+    {
+        Node *current = list->head;
+        for (int i = 0; i < position - 1; i++)
+        {
+            if (current == NULL)
+            {
+                printf("Position out of range!\n");
+                return;
+            }
+            current = current->next;
+        }
+        new_node->next = current->next;
+        current->next = new_node;
+    }
+}
+
+void delete_node(LinkedList *list, int position)
+{
+    if (list->head == NULL)
+    {
+        printf("List is empty!\n");
+        return;
+    }
+    if (position == 0)
+    {
+        Node *temp = list->head;
+        list->head = list->head->next;
+        free(temp);
+    }
+    else
+    {
+        Node *current = list->head;
+        for (int i = 0; i < position - 1; i++)
+        {
+            if (current->next == NULL)
+            {
+                printf("Position out of range!\n");
+                return;
+            }
+            current = current->next;
+        }
+        Node *temp = current->next;
+        current->next = current->next->next;
+        free(temp);
+    }
+}
+
+void print_list(LinkedList *list)
+{
+    Node *current = list->head;
+    while (current != NULL)
+    {
+        // printf("%d ", current->data);
+        current = current->next;
+    }
     printf("\n");
 }
 
@@ -451,6 +562,56 @@ void connectUEtoBTS(Cell ue, Cell BTS, int connection_type)
         DrawLine(point_ue.pointX, point_ue.pointY, point_bts.pointX, point_bts.pointY, PURPLE);
     }
 }
+void drawMscDemarc()
+{
+    Cell cells[4];
+
+    // values are random, don't want to include data science in this
+    // making boundary for MSC1
+    cells[0].cellX = 0;
+    cells[0].cellY = 34;
+    cells[0].color = WHITE;
+
+    cells[1].cellX = 37;
+    cells[1].cellY = 34;
+    cells[1].color = WHITE;
+
+    cells[2].cellX = 63;
+    cells[2].cellY = 19;
+    cells[2].color = WHITE;
+
+    cells[3].cellX = 63;
+    cells[3].cellY = 0;
+    cells[3].color = WHITE;
+
+    for (int i = 0; i < 3; i++)
+    {
+        DrawLineEx((Vector2){cell_to_pixel(cells[i]).pointX, cell_to_pixel(cells[i]).pointY}, (Vector2){cell_to_pixel(cells[i + 1]).pointX, cell_to_pixel(cells[i + 1]).pointY}, 1.5, WHITE);
+    }
+
+    // making boundary for MSC2
+    cells[0].cellX = 37;
+    cells[0].cellY = 69;
+    cells[0].color = WHITE;
+
+    cells[1].cellX = 37;
+    cells[1].cellY = 40;
+    cells[1].color = WHITE;
+
+    cells[2].cellX = 57;
+    cells[2].cellY = 34;
+    cells[2].color = WHITE;
+
+    cells[3].cellX = 84;
+    cells[3].cellY = 38;
+    cells[3].color = WHITE;
+
+    for (int i = 0; i < 3; i++)
+    {
+        // mark(cells[i]);
+        DrawLineEx((Vector2){cell_to_pixel(cells[i]).pointX, cell_to_pixel(cells[i]).pointY}, (Vector2){cell_to_pixel(cells[i + 1]).pointX, cell_to_pixel(cells[i + 1]).pointY}, 1.5, WHITE);
+    }
+}
 
 // used when two ue's are connected
 void connectBTStoBTS(Cell BTS1, Cell BTS2)
@@ -503,7 +664,11 @@ void *user_input(void *arg)
         {
             sem_wait(mysemp);
             printf("Enter EID of UE's u wish to connect : ");
-            scanf("%d %d", &ue1, &ue2);
+            scanf("%d %d", &ue1_g, &ue2_g);
+            struct pair_int_int ue_connect_data;
+            ue_connect_data.x = ue1_g;
+            ue_connect_data.y = ue2_g;
+            add_node(list, ue_connect_data);
             sem_post(mysemp);
         }
         else if (strcmp(str, "recharge") == 0)
@@ -696,6 +861,7 @@ int main(void)
                                     GRAY,
                                     DARKGRAY};
 
+    list = create_list();
     // Man data 1
     int startLoc[total_UE][2] = {{10, 10}, {20, 20}, {30, 30}, {40, 40}};
     // printf("%s\n", (dynamic_UE_count));
@@ -719,8 +885,8 @@ int main(void)
     // NEED TO IMPROVE THIS
 
     // Man data 2
-    int BTS_Data[total_BTS][4] = {{15, 15, 75, 0}, {35, 20, 120, 0}, {50, 10, 90, 0}};
-    Color BTS_Color[total_BTS] = {BLUE, GREEN, RED};
+    int BTS_Data[total_BTS][4] = {{15, 15, 75, 0}, {35, 20, 120, 0}, {50, 10, 90, 0}, {50, 45, 80, 0}, {70, 50, 130, 0}, {55, 60, 80, 0}};
+    Color BTS_Color[total_BTS] = {BLUE, GREEN, RED, GREEN, RED, PURPLE};
 
     for (int i = 0; i < sizeof(BTS_Data) / sizeof(BTS_Data[0]); i++)
     {
@@ -878,18 +1044,18 @@ int main(void)
 
             // Draw background image twice
             // NOTE: Texture is scaled twice its size
-            DrawTextureEx(background, (Vector2){scrollingBack, 250}, 0.0f, 2.0f, WHITE);
-            DrawTextureEx(background, (Vector2){background.width * 2 + scrollingBack, 20}, 0.0f, 2.0f, WHITE);
+            DrawTextureEx(background, (Vector2){scrollingBack, 225}, 0.0f, 2.0f, WHITE);
+            DrawTextureEx(background, (Vector2){background.width * 2 + scrollingBack, 225}, 0.0f, 2.0f, WHITE);
 
             // Draw midground image twice
-            DrawTextureEx(midground, (Vector2){scrollingMid, 325}, 0.0f, 2.0f, WHITE);
-            DrawTextureEx(midground, (Vector2){midground.width * 2 + scrollingMid, 20}, 0.0f, 2.0f, WHITE);
+            DrawTextureEx(midground, (Vector2){scrollingMid, 330}, 0.0f, 2.0f, WHITE);
+            DrawTextureEx(midground, (Vector2){midground.width * 2 + scrollingMid, 330}, 0.0f, 2.0f, WHITE);
 
             // Draw foreground image twice
             DrawTextureEx(foreground, (Vector2){scrollingFore, 420}, 0.0f, 2.0f, WHITE);
-            DrawTextureEx(foreground, (Vector2){foreground.width * 2 + scrollingFore, 70}, 0.0f, 2.0f, WHITE);
+            DrawTextureEx(foreground, (Vector2){foreground.width * 2 + scrollingFore, 420}, 0.0f, 2.0f, WHITE);
 
-            DrawText("NET - SIM", 10, 10, 20, RED);
+            DrawText("NET - SIM", 40, 40, 20, RED);
             DrawText(" Sarthak Jha (@prince-aegon)", screenWidth - 200, screenHeight - 20, 10, RAYWHITE);
 
             // uncomment for box
@@ -908,7 +1074,7 @@ int main(void)
             //  DrawText(inUE, (int)textBox.x + 5, (int)textBox.y + 8, 5, BLACK);
             //  DrawText("#BTS : ", (int)textBox.x - 40, (int)textBox.y + 10, 5, WHITE);
 
-            DrawText("PRESS 'ENTER' TO START", 10, 50, 13, MAROON);
+            DrawText("PRESS 'ENTER' TO START", 40, 100, 13, MAROON);
 
             // DrawText(TextFormat("INPUT CHARS: %i/%i", letterCount, MAX_INPUT_CHARS), 315, 250, 20, DARKGRAY);
 
@@ -963,6 +1129,7 @@ int main(void)
 
             drawBTS();
             createGrid();
+            drawMscDemarc();
 
             bool connectPermission[dynamic_UE_count];
 
@@ -1125,62 +1292,84 @@ int main(void)
             }
 
             // from the data recieved from io thread, link the ue's
-            if (ue1 > -1 && ue2 > -1)
+            // if (ue1 > -1 && ue2 > -1)
+            Node *current = list->head;
+            int position = 0, rem = 0;
+            int remConnections[10];
+            while (current != NULL)
+            // if (!is_empty(queue))
             {
+                struct pair_int_int ue_connect_data;
+                ue_connect_data = current->data;
+                int ue1 = ue_connect_data.x, ue2 = ue_connect_data.y;
 
-                // check if either of the device has an invalid subscription
-                if (!connectPermission[ue1 - 1] || !connectPermission[ue2 - 1])
+                if (ue1 > -1 && ue2 > -1)
                 {
-                    printf("Unauthorized access \n");
-                    if (!connectPermission[ue1 - 1])
-                        printf("UE with EID : %s has invalid subscription\n", EIDMapping[ue1 - 1].value);
-                    else
-                        printf("UE with EID : %s has invalid subscription\n", EIDMapping[ue2 - 1].value);
-
-                    ue1 = -1;
-                    ue2 = -1;
-                }
-
-                // check if both devices are connected
-                else if (state[ue1 - 1][0].connection > -1 && state[ue2 - 1][0].connection > -1)
-                {
-                    connectBTStoBTS(ListBTS[state[ue1 - 1][0].connection].loc, ListBTS[state[ue2 - 1][0].connection].loc);
-                    connectUEtoBTS(state[ue1 - 1][0], ListBTS[state[ue1 - 1][0].connection].loc, 1);
-                    connectUEtoBTS(state[ue2 - 1][0], ListBTS[state[ue2 - 1][0].connection].loc, 1);
-                    if (frame_tracker - currFrame == 1)
+                    // check if either of the device has an invalid subscription
+                    if (!connectPermission[ue1 - 1] || !connectPermission[ue2 - 1])
                     {
-                        printProgress(1);
-                        printf("Connection Established... \n");
+                        printf("Unauthorized access \n");
+                        if (!connectPermission[ue1 - 1])
+                            printf("UE with EID : %s has invalid subscription\n", EIDMapping[ue1 - 1].value);
+                        else
+                            printf("UE with EID : %s has invalid subscription\n", EIDMapping[ue2 - 1].value);
+
+                        ue1 = -1;
+                        ue2 = -1;
                     }
-                    int test_n;
-                    state[ue1 - 1][0].flag = 0;
-                    state[ue2 - 1][0].flag = 0;
-                    if (currFrame == 0)
-                        currFrame = frame_tracker;
-                    else
+
+                    // check if both devices are connected
+                    else if (state[ue1 - 1][0].connection > -1 && state[ue2 - 1][0].connection > -1)
                     {
-                        if (frame_tracker - currFrame >= 150)
+                        connectBTStoBTS(ListBTS[state[ue1 - 1][0].connection].loc, ListBTS[state[ue2 - 1][0].connection].loc);
+                        connectUEtoBTS(state[ue1 - 1][0], ListBTS[state[ue1 - 1][0].connection].loc, 1);
+                        connectUEtoBTS(state[ue2 - 1][0], ListBTS[state[ue2 - 1][0].connection].loc, 1);
+                        if (frame_tracker - currFrame == 1)
                         {
-                            printf("Disconnecting... \n");
-                            state[ue1 - 1][0].flag = 1;
-                            state[ue2 - 1][0].flag = 1;
-                            currFrame = 0;
-                            ue1 = -1;
-                            ue2 = -1;
-                            progress = 0;
-                            printf("Disconnected successfully... \n");
+                            printProgress(1);
+                            printf("Connection Established... \n");
+                        }
+                        int test_n;
+                        state[ue1 - 1][0].flag = 0;
+                        state[ue2 - 1][0].flag = 0;
+                        if (currFrame == 0)
+                            currFrame = frame_tracker;
+                        else
+                        {
+                            if (frame_tracker - currFrame >= 250)
+                            {
+                                printf("Disconnecting... \n");
+                                state[ue1 - 1][0].flag = 1;
+                                state[ue2 - 1][0].flag = 1;
+                                currFrame = 0;
+                                ue1 = -1;
+                                ue2 = -1;
+                                progress = 0;
+                                printf("Disconnected successfully... \n");
+                            }
                         }
                     }
-                }
 
-                // else run the progress bar
-                else
-                {
-                    float value = get_progress(progress);
-                    printProgress(value);
-                    progress++;
-                    // fflush(stdout);
+                    // else run the progress bar
+                    else
+                    {
+                        float value = get_progress(progress);
+                        printProgress(value);
+                        progress++;
+                        // fflush(stdout);
+                    }
                 }
+                if (ue1 == -1 && ue2 == -1)
+                {
+                    remConnections[rem] = position;
+                    rem++;
+                }
+                position++;
+                current = current->next;
+            }
+            for (int i = 0; i < rem; i++)
+            {
+                delete_node(list, remConnections[i]);
             }
 
             // if ue_recharge is positive means a request has been recieved
@@ -1226,10 +1415,10 @@ int main(void)
             // draw line between ue and connected db
             for (int i = 0; i < total_UE; i++)
             {
-                if (ue1 != i + 1 && ue2 != i + 1)
-                {
-                    connectUEtoBTS(state[i][0], ListBTS[state[i][0].connection].loc, 0);
-                }
+                // if (ue1 != i + 1 && ue2 != i + 1)
+                // {
+                connectUEtoBTS(state[i][0], ListBTS[state[i][0].connection].loc, 0);
+                // }
             }
 
             // init BTS connection count
