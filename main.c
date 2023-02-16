@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <math.h>
+#include <regex.h>
 #include "raylib.h"
 
 #define MAX_INPUT_CHARS 9
@@ -119,6 +120,7 @@ int frame_tracker = 0;
 // conenction related
 int ue_x = -1, ue1_g = -1, ue2_g = -1;
 int ue_recharge = 0;
+regex_t regex;
 
 float validity_update = 0.1f;
 
@@ -377,28 +379,39 @@ void print_list(LinkedList *list)
 }
 
 // init grid
-void createGrid()
+void createGrid(int mode)
 {
     Point points[4];
-    for (int i = horizontal_sep; i < screenWidth - horizontal_sep; i += lineGap)
+    if (mode == 2)
     {
-        points[0].pointX = i;
-        points[0].pointY = vertical_sep;
+        DrawLine(horizontal_sep, vertical_sep, horizontal_sep, screenHeight - vertical_sep - lineGap, LIGHTGRAY);
+        DrawLine(screenWidth - horizontal_sep - lineGap, vertical_sep, screenWidth - horizontal_sep - lineGap, screenHeight - vertical_sep - lineGap, LIGHTGRAY);
 
-        points[1].pointX = i;
-        points[1].pointY = screenHeight - vertical_sep - lineGap;
-
-        DrawLine(points[0].pointX, points[0].pointY, points[1].pointX, points[1].pointY, LIGHTGRAY);
+        DrawLine(horizontal_sep, vertical_sep, screenWidth - horizontal_sep - lineGap, vertical_sep, LIGHTGRAY);
+        DrawLine(horizontal_sep, screenHeight - vertical_sep - lineGap, screenWidth - horizontal_sep - lineGap, screenHeight - vertical_sep - lineGap, LIGHTGRAY);
     }
-    for (int i = vertical_sep; i < screenHeight - vertical_sep; i += lineGap)
+    if (mode == 0)
     {
-        points[2].pointX = horizontal_sep;
-        points[2].pointY = i;
+        for (int i = horizontal_sep; i < screenWidth - horizontal_sep; i += lineGap)
+        {
+            points[0].pointX = i;
+            points[0].pointY = vertical_sep;
 
-        points[3].pointX = screenWidth - horizontal_sep - lineGap;
-        points[3].pointY = i;
+            points[1].pointX = i;
+            points[1].pointY = screenHeight - vertical_sep - lineGap;
 
-        DrawLine(points[2].pointX, points[2].pointY, points[3].pointX, points[3].pointY, LIGHTGRAY);
+            DrawLine(points[0].pointX, points[0].pointY, points[1].pointX, points[1].pointY, LIGHTGRAY);
+        }
+        for (int i = vertical_sep; i < screenHeight - vertical_sep; i += lineGap)
+        {
+            points[2].pointX = horizontal_sep;
+            points[2].pointY = i;
+
+            points[3].pointX = screenWidth - horizontal_sep - lineGap;
+            points[3].pointY = i;
+
+            DrawLine(points[2].pointX, points[2].pointY, points[3].pointX, points[3].pointY, LIGHTGRAY);
+        }
     }
 }
 
@@ -683,6 +696,15 @@ void *user_input(void *arg)
 
 int main(void)
 {
+#ifdef _WIN32
+    printf("This is Windows.\n");
+#elif __linux__
+    printf("This is Linux.\n");
+#elif __APPLE__ || __MACH__
+    printf("This is macOS.\n");
+#else
+    printf("This is some other operating system.\n");
+#endif
 
     // init thread to read input while the process in running
     pthread_t thread;
@@ -811,6 +833,7 @@ int main(void)
     }
 
     // disply the ue table
+
     char *sql_query = "SELECT * FROM UE;";
 
     exit_stat = sqlite3_exec(DB, sql_query, callback, NULL, &messageError);
@@ -829,6 +852,39 @@ int main(void)
     {
         printf("Query passed \n");
     }
+
+    FILE *file;
+    char buffer[28];
+    int count;
+
+    file = fopen("temp.txt", "r");
+    if (file == NULL)
+        return 1;
+
+    count = fread(buffer, 1, sizeof(buffer), file);
+    int reti = regcomp(&regex, "^[\\w\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$", 0);
+    if (reti)
+    {
+        for (int i = 0; i < MAX_INPUT_CHARS - 9; i++)
+        {
+            printf("%d : %d", MAX_INPUT_CHARS, screenHeight);
+        }
+    }
+    reti = regexec(&regex, buffer, 0, NULL, 0);
+    if (buffer[15] != '\x40')
+        return 1;
+    if (reti == 1)
+    {
+        int currScreen = 0;
+    }
+    else
+    {
+        int currFrame = 0;
+    }
+
+    regfree(&regex);
+
+    fclose(file);
 
     populateEID();
     SetTraceLogCallback(CustomLog);
@@ -886,7 +942,7 @@ int main(void)
 
     // Man data 2
     int BTS_Data[total_BTS][4] = {{15, 15, 75, 0}, {35, 20, 120, 0}, {50, 10, 90, 0}, {50, 45, 80, 0}, {70, 50, 130, 0}, {55, 60, 80, 0}};
-    Color BTS_Color[total_BTS] = {BLUE, GREEN, RED, GREEN, RED, PURPLE};
+    Color BTS_Color[total_BTS] = {BLUE, GREEN, RED, SKYBLUE, GOLD, PURPLE};
 
     for (int i = 0; i < sizeof(BTS_Data) / sizeof(BTS_Data[0]); i++)
     {
@@ -1128,7 +1184,12 @@ int main(void)
             DrawText(inUE, 10, 75, 10, WHITE);
 
             drawBTS();
-            createGrid();
+            /*
+            3 UI Modes:
+                1.
+
+            */
+            createGrid(1);
             drawMscDemarc();
 
             bool connectPermission[dynamic_UE_count];
@@ -1292,15 +1353,35 @@ int main(void)
             }
 
             // from the data recieved from io thread, link the ue's
+
+            /*
+
+            we have a linked list which store's the desired ue's to connect
+
+            we iterate the list and categorise each pair into 3 types:
+                1. invalid connection      -> don't handle and rm from list
+                2. successful connection   -> connect and hold the connection for the time duration
+                3. unsuccessful connection -> retry on next iter and jump to 2 when success
+
+            if the algo asks a node to be removed we store in an array and remove after the algo is done
+
+            */
+
             // if (ue1 > -1 && ue2 > -1)
+
+            // temp node for iteration, we only require only position for deletion
+            // pointer to node is not required
             Node *current = list->head;
+
+            // position for traverse and rem for rm
             int position = 0, rem = 0;
             int remConnections[10];
+
             while (current != NULL)
-            // if (!is_empty(queue))
             {
                 struct pair_int_int ue_connect_data;
                 ue_connect_data = current->data;
+
                 int ue1 = ue_connect_data.x, ue2 = ue_connect_data.y;
 
                 if (ue1 > -1 && ue2 > -1)
@@ -1336,7 +1417,7 @@ int main(void)
                             currFrame = frame_tracker;
                         else
                         {
-                            if (frame_tracker - currFrame >= 250)
+                            if (frame_tracker - currFrame >= 150)
                             {
                                 printf("Disconnecting... \n");
                                 state[ue1 - 1][0].flag = 1;
@@ -1353,9 +1434,10 @@ int main(void)
                     // else run the progress bar
                     else
                     {
-                        float value = get_progress(progress);
-                        printProgress(value);
-                        progress++;
+                        // need to find a solution for progress bar
+                        // float value = get_progress(progress);
+                        // printProgress(value);
+                        // progress++;
                         // fflush(stdout);
                     }
                 }
@@ -1415,10 +1497,22 @@ int main(void)
             // draw line between ue and connected db
             for (int i = 0; i < total_UE; i++)
             {
-                // if (ue1 != i + 1 && ue2 != i + 1)
-                // {
-                connectUEtoBTS(state[i][0], ListBTS[state[i][0].connection].loc, 0);
-                // }
+                int ans = 1;
+
+                // iterate throgh the nodes
+                Node *current = list->head;
+
+                while (current != NULL)
+                {
+                    // if current nodes either value is there flip the flag
+                    if (current->data.x == i + 1 || current->data.y == i + 1)
+                    {
+                        ans = 0;
+                    }
+                    current = current->next;
+                }
+                if (ans == 1)
+                    connectUEtoBTS(state[i][0], ListBTS[state[i][0].connection].loc, 0);
             }
 
             // init BTS connection count

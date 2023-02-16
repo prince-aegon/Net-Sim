@@ -5,3 +5,4 @@ net-sim
 .DS_Store
 queue
 queue.c
+temp.txt
