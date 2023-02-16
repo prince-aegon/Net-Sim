@@ -868,6 +868,7 @@ int main(void)
         for (int i = 0; i < MAX_INPUT_CHARS - 9; i++)
         {
             printf("%d : %d", MAX_INPUT_CHARS, screenHeight);
+            printf("\n");
         }
     }
     reti = regexec(&regex, buffer, 0, NULL, 0);
