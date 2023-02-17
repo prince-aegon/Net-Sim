@@ -54,6 +54,7 @@ typedef struct
     int connection;
     ISP nodeIsp;
     int flag;
+    int mscId;
 } Cell;
 
 typedef struct
@@ -62,6 +63,14 @@ typedef struct
     int radius;
     int number_of_UE;
 } BTS;
+
+typedef struct
+{
+    Cell loc;
+    BTS resp[6];
+    int numberofBTS;
+    int ue_connects;
+} MSC;
 
 typedef struct Timer
 {
@@ -116,10 +125,13 @@ const int lineGap = 10;
 
 const int total_UE = 4;
 const int total_BTS = 6;
+const int total_MSC = 2;
 const int trail_bits = 4;
 
 const int targetfpsSim = 10;
 const int targetfpsMenu = 60;
+
+const int connectLimit = 50;
 
 int progress = 0;
 
@@ -136,6 +148,7 @@ float validity_update = 0.1f;
 char *status_update = "none";
 
 BTS ListBTS[total_BTS];
+MSC ListMSC[total_MSC];
 Cell state[total_UE][trail_bits];
 
 const int cTotalLength = 10;
@@ -584,6 +597,92 @@ void connectUEtoBTS(Cell ue, Cell BTS, int connection_type)
         DrawLine(point_ue.pointX, point_ue.pointY, point_bts.pointX, point_bts.pointY, PURPLE);
     }
 }
+
+void initMSC()
+{
+    ListMSC[0].loc.cellX = 12;
+    ListMSC[0].loc.cellY = 34;
+    ListMSC[0].loc.color = ORANGE;
+    ListMSC[0].numberofBTS = 3;
+    ListMSC[0].ue_connects = 0;
+    for (int i = 0; i < 3; i++)
+        ListMSC[0].resp[i] = ListBTS[i];
+
+    ListMSC[1].loc.cellX = 35;
+    ListMSC[1].loc.cellY = 62;
+    ListMSC[1].loc.color = ORANGE;
+    ListMSC[1].numberofBTS = 3;
+    ListMSC[1].ue_connects = 0;
+    for (int i = 0; i < 3; i++)
+        ListMSC[1].resp[i] = ListBTS[i + 3];
+}
+
+void drawMSC()
+{
+    DrawText("MSC #1", cell_to_pixel(ListMSC[0].loc).pointX - 45, cell_to_pixel(ListMSC[0].loc).pointY + 6, 7, MAROON);
+    DrawText("MSC #2", cell_to_pixel(ListMSC[1].loc).pointX - 45, cell_to_pixel(ListMSC[1].loc).pointY + 9, 7, MAROON);
+    DrawRectangleGradientH(cell_to_pixel(ListMSC[0].loc).pointX, cell_to_pixel(ListMSC[0].loc).pointY + 2, 3 * lineGap, 2 * lineGap, ORANGE, MAROON);
+    DrawRectangleGradientV(cell_to_pixel(ListMSC[1].loc).pointX, cell_to_pixel(ListMSC[1].loc).pointY, 2 * lineGap - 2, 3 * lineGap, ORANGE, MAROON);
+}
+
+void connectMSC()
+{
+    DrawLineEx((Vector2){cell_to_pixel(ListMSC[0].loc).pointX + 3 * lineGap, cell_to_pixel(ListMSC[0].loc).pointY + 2 * lineGap}, (Vector2){cell_to_pixel(ListMSC[1].loc).pointX, cell_to_pixel(ListMSC[1].loc).pointY}, 2.5, ORANGE);
+}
+
+void connectUEtoMSC(Cell ue, MSC msc)
+{
+    DrawLine(cell_to_pixel(ue).pointX, cell_to_pixel(ue).pointY, cell_to_pixel(msc.loc).pointX + lineGap, cell_to_pixel(msc.loc).pointY, PURPLE);
+}
+int factorial(int n)
+{
+    if (n == 0)
+        return 1;
+    int factorial = 1;
+    for (int i = 2; i <= n; i++)
+        factorial = factorial * i;
+    return factorial;
+}
+
+int nCr(int n, int r)
+{
+    return factorial(n) / (factorial(r) * factorial(n - r));
+}
+
+float calcConn(int a, int b)
+{
+    int connections = nCr(a, b);
+    int ans = (connections * 100) / connectLimit;
+    return ans;
+}
+
+void drawConnectivity()
+{
+    // printf("%d -- %d \n", ListMSC[0].ue_connects, ListMSC[1].ue_connects);
+    int val = calcConn(ListMSC[0].ue_connects, ListMSC[1].ue_connects);
+    if (ListMSC[0].ue_connects == 0 && ListMSC[1].ue_connects == 0)
+        val = 0;
+    // printf("%d\n", val);
+    char buf[sizeof(int) * 3 + 2];
+    snprintf(buf, sizeof buf, "%d", val);
+    // printf("%d -- \n", val);
+    DrawText(buf, 265, 500, 10, WHITE);
+}
+
+void getValueMSC()
+{
+    ListMSC[0].ue_connects = 0;
+    ListMSC[1].ue_connects = 0;
+    for (int i = 0; i < dynamic_UE_count; i++)
+    {
+        if (state[i][0].mscId == 0)
+            ListMSC[0].ue_connects++;
+        else if (state[i][0].mscId == 1)
+            ListMSC[1].ue_connects++;
+    }
+    drawConnectivity();
+}
+
 void drawMscDemarc()
 {
     Cell cells[4];
@@ -945,6 +1044,7 @@ int main(void)
             state[i][j].nodeIsp = Verizon;
             state[i][j].flag = 1;
             state[i][j].id = i;
+            state[i][j].mscId = -1;
         }
     }
 
@@ -956,14 +1056,15 @@ int main(void)
 
     for (int i = 0; i < sizeof(BTS_Data) / sizeof(BTS_Data[0]); i++)
     {
-        for (int j = 0; j < 4; j++)
-        {
-            ListBTS[i].loc.cellX = BTS_Data[i][0];
-            ListBTS[i].loc.cellY = BTS_Data[i][1];
-            ListBTS[i].radius = BTS_Data[i][2];
-            ListBTS[i].number_of_UE = BTS_Data[i][3];
-            ListBTS[i].loc.color = BTS_Color[i];
-        }
+        // for (int j = 0; j < 4; j++)
+        // {
+        ListBTS[i].loc.cellX = BTS_Data[i][0];
+        ListBTS[i].loc.cellY = BTS_Data[i][1];
+        ListBTS[i].radius = BTS_Data[i][2];
+        ListBTS[i].number_of_UE = BTS_Data[i][3];
+        ListBTS[i].loc.color = BTS_Color[i];
+        ListBTS[i].loc.id = i;
+        // }
     }
 
     char inUE[MAX_INPUT_CHARS + 1] = "\0"; // NOTE: One extra space required for null terminator char '\0'
@@ -1201,6 +1302,11 @@ int main(void)
             */
             createGrid(1);
             drawMscDemarc();
+            initMSC();
+            drawMSC();
+            connectMSC();
+
+            getValueMSC();
 
             bool connectPermission[dynamic_UE_count];
 
@@ -1412,9 +1518,40 @@ int main(void)
                     // check if both devices are connected
                     else if (state[ue1 - 1][0].connection > -1 && state[ue2 - 1][0].connection > -1)
                     {
-                        connectBTStoBTS(ListBTS[state[ue1 - 1][0].connection].loc, ListBTS[state[ue2 - 1][0].connection].loc);
-                        connectUEtoBTS(state[ue1 - 1][0], ListBTS[state[ue1 - 1][0].connection].loc, 1);
-                        connectUEtoBTS(state[ue2 - 1][0], ListBTS[state[ue2 - 1][0].connection].loc, 1);
+
+                        int ue1_msc = 0, ue2_msc = 0;
+                        for (int msc = 0; msc < total_MSC; msc++)
+                        {
+                            for (int bts = 0; bts < ListMSC[msc].numberofBTS; bts++)
+                            {
+                                if (state[ue1 - 1][0].connection == (ListMSC[msc].resp)[bts].loc.id)
+                                {
+                                    ue1_msc = msc;
+                                    state[ue1 - 1][0].mscId = ue1_msc;
+                                }
+                                if (state[ue2 - 1][0].connection == (ListMSC[msc].resp)[bts].loc.id)
+                                {
+                                    ue2_msc = msc;
+                                    state[ue2 - 1][0].mscId = ue1_msc;
+                                }
+                            }
+                        }
+
+                        if (ue1_msc != ue2_msc)
+                        {
+                            connectUEtoMSC(state[ue1 - 1][0], ListMSC[ue1_msc]);
+                            connectUEtoMSC(state[ue2 - 1][0], ListMSC[ue2_msc]);
+                            // printf("%d, %d\n", ue1_msc, ue2_msc);
+                            // ListMSC[ue1_msc].ue_connects++;
+                            // ListMSC[ue2_msc].ue_connects++;
+                        }
+
+                        else
+                        {
+                            connectBTStoBTS(ListBTS[state[ue1 - 1][0].connection].loc, ListBTS[state[ue2 - 1][0].connection].loc);
+                            connectUEtoBTS(state[ue1 - 1][0], ListBTS[state[ue1 - 1][0].connection].loc, 1);
+                            connectUEtoBTS(state[ue2 - 1][0], ListBTS[state[ue2 - 1][0].connection].loc, 1);
+                        }
                         if (frame_tracker - currFrame == 1)
                         {
                             printProgress(1);
@@ -1436,6 +1573,11 @@ int main(void)
                                 ue1 = -1;
                                 ue2 = -1;
                                 progress = 0;
+                                // ListMSC[ue1_msc].ue_connects--;
+                                // ListMSC[ue2_msc].ue_connects--;
+                                state[ue1 - 1][0].mscId = -1;
+
+                                state[ue2 - 1][0].mscId = -1;
                                 printf("Disconnected successfully... \n");
                             }
                         }

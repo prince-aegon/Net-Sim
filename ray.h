@@ -11,6 +11,14 @@ enum Direction
     Down,
     Left
 };
+
+typedef struct
+{
+    Cell loc;
+    BTS resp[6];
+    int numberofBTS;
+    int ue_connects;
+} MSC;
 typedef struct
 {
     int pointX;
