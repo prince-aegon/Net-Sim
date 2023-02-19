@@ -131,7 +131,7 @@ const int trail_bits = 4;
 const int targetfpsSim = 10;
 const int targetfpsMenu = 60;
 
-const int connectLimit = 50;
+const int connectLimit = 10;
 
 int progress = 0;
 
@@ -651,14 +651,15 @@ int nCr(int n, int r)
 
 float calcConn(int a, int b)
 {
-    int connections = nCr(a, b);
+    int connections = a + b;
     int ans = (connections * 100) / connectLimit;
+    // printf("%d \n", connections);
     return ans;
 }
 
 void drawConnectivity()
 {
-    // printf("%d -- %d \n", ListMSC[0].ue_connects, ListMSC[1].ue_connects);
+    // printf("0 : %d, 1 : %d \n", ListMSC[0].ue_connects, ListMSC[1].ue_connects);
     int val = calcConn(ListMSC[0].ue_connects, ListMSC[1].ue_connects);
     if (ListMSC[0].ue_connects == 0 && ListMSC[1].ue_connects == 0)
         val = 0;
@@ -681,6 +682,27 @@ void getValueMSC()
             ListMSC[1].ue_connects++;
     }
     drawConnectivity();
+}
+
+void getValueMSC2()
+{
+    int connections = 0;
+    Node *current = list->head;
+    while (current != NULL)
+    {
+        int uex = current->data.x;
+        int uey = current->data.y;
+
+        if (state[uex - 1][0].mscId != state[uey - 1][0].mscId)
+        {
+            connections += 1;
+        }
+        current = current->next;
+    }
+    int ans = (connections * 100) / connectLimit;
+    char buf[sizeof(int) * 3 + 2];
+    snprintf(buf, sizeof buf, "%d %%", ans);
+    DrawText(buf, 250, 475, 10, YELLOW);
 }
 
 void drawMscDemarc()
@@ -918,10 +940,10 @@ int main(void)
     }
 
     // insert dummy values into hlr table
-    char *sql_insert_hlr = "INSERT OR IGNORE INTO HLR VALUES('V001', 20, 10, 'VERIZON', 1, 2000, 1);"
+    char *sql_insert_hlr = "INSERT OR IGNORE INTO HLR VALUES('V001', 20, 10, 'VERIZON', 1, 1000, 1);"
                            "INSERT OR IGNORE INTO HLR VALUES('C001', 5,  5,  'COMCAST', 1, 2000, 2);"
-                           "INSERT OR IGNORE INTO HLR VALUES('V002', 10, 10, 'VERIZOM', 0,  2000, 0);"
-                           "INSERT OR IGNORE INTO HLR VALUES('A001', 15, 15, 'ATnT',    1,  2000, 1);";
+                           "INSERT OR IGNORE INTO HLR VALUES('V002', 10, 10, 'VERIZOM', 0, 3000, 0);"
+                           "INSERT OR IGNORE INTO HLR VALUES('A001', 15, 15, 'ATnT',    1, 4000, 1);";
 
     exit_stat = sqlite3_exec(DB, sql_insert_hlr, NULL, 0, &messageError);
 
@@ -1285,7 +1307,28 @@ int main(void)
             DrawText(TextFormat("%d", ListBTS[0].number_of_UE), 10, 35, 10, BLUE);
             DrawText(TextFormat("%d", ListBTS[1].number_of_UE), 10, 45, 10, GREEN);
             DrawText(TextFormat("%d", ListBTS[2].number_of_UE), 10, 55, 10, RED);
-            DrawText(TextFormat("Connection Rate : %0.f", getConnectionRate()), screenWidth / 2, 10, 10, WHITE);
+
+            DrawText(TextFormat("%d", ListBTS[3].number_of_UE), 20, 35, 10, SKYBLUE);
+            DrawText(TextFormat("%d", ListBTS[4].number_of_UE), 20, 45, 10, GOLD);
+            DrawText(TextFormat("%d", ListBTS[5].number_of_UE), 20, 55, 10, PURPLE);
+            DrawText(TextFormat("Network Rate : %0.f", getConnectionRate()), screenWidth / 2, 10, 10, WHITE);
+
+            // display live and pending connections
+            DrawText("Connections", 10, 75, 5, WHITE);
+            int count_ll = 0;
+            Node *current_display = list->head;
+            while (current_display != NULL)
+            {
+                int ue1x = current_display->data.x;
+                int ue1y = current_display->data.y;
+                if (state[ue1x - 1][0].connection == -1 || state[ue1y - 1][0].connection == -1)
+                    DrawText(TextFormat("%d, %d\n", current_display->data.x, current_display->data.y), 10, 85 + 10 * count_ll, 10, RED);
+                else
+                    DrawText(TextFormat("%d, %d\n", current_display->data.x, current_display->data.y), 10, 85 + 10 * count_ll, 10, GREEN);
+
+                count_ll++;
+                current_display = current_display->next;
+            }
 
             // int k = atoi(inUE);
             // k = k + 100;
@@ -1306,7 +1349,8 @@ int main(void)
             drawMSC();
             connectMSC();
 
-            getValueMSC();
+            // getValueMSC();
+            getValueMSC2();
 
             bool connectPermission[dynamic_UE_count];
 
@@ -1532,7 +1576,7 @@ int main(void)
                                 if (state[ue2 - 1][0].connection == (ListMSC[msc].resp)[bts].loc.id)
                                 {
                                     ue2_msc = msc;
-                                    state[ue2 - 1][0].mscId = ue1_msc;
+                                    state[ue2 - 1][0].mscId = ue2_msc;
                                 }
                             }
                         }
@@ -1554,7 +1598,7 @@ int main(void)
                         }
                         if (frame_tracker - currFrame == 1)
                         {
-                            printProgress(1);
+                            // printProgress(1);
                             printf("Connection Established... \n");
                         }
                         int test_n;
@@ -1564,20 +1608,21 @@ int main(void)
                             currFrame = frame_tracker;
                         else
                         {
-                            if (frame_tracker - currFrame >= 150)
+                            if (frame_tracker - currFrame >= 50)
                             {
                                 printf("Disconnecting... \n");
                                 state[ue1 - 1][0].flag = 1;
                                 state[ue2 - 1][0].flag = 1;
+                                state[ue1 - 1][0].mscId = -1;
+
+                                state[ue2 - 1][0].mscId = -1;
                                 currFrame = 0;
                                 ue1 = -1;
                                 ue2 = -1;
                                 progress = 0;
                                 // ListMSC[ue1_msc].ue_connects--;
                                 // ListMSC[ue2_msc].ue_connects--;
-                                state[ue1 - 1][0].mscId = -1;
 
-                                state[ue2 - 1][0].mscId = -1;
                                 printf("Disconnected successfully... \n");
                             }
                         }
