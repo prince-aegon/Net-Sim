@@ -55,6 +55,7 @@ typedef struct
     ISP nodeIsp;
     int flag;
     int mscId;
+    int roaming;
 } Cell;
 
 typedef struct
@@ -62,6 +63,7 @@ typedef struct
     Cell loc;
     int radius;
     int number_of_UE;
+    ISP btsISP;
 } BTS;
 
 typedef struct
@@ -115,6 +117,8 @@ const char semname[] = "semname";
 unsigned int value = 1;
 int sts;
 
+sqlite3 *DB;
+
 const int screenWidth = 1000;
 const int screenHeight = 800;
 
@@ -151,9 +155,37 @@ BTS ListBTS[total_BTS];
 MSC ListMSC[total_MSC];
 Cell state[total_UE][trail_bits];
 
+// ds to store the isp of ue's and bts's
+// need to manually add a new entry
+// take input of UE from database
+ISP BTS_ISP[total_BTS] = {Verizon,
+                          Verizon,
+                          ATnT,
+                          Comcast,
+                          Comcast,
+                          Comcast};
+
+char *BTS_ISP_DIS[total_BTS] = {"Verizon",
+                                "Verizon",
+                                "ATnT",
+                                "Comcast",
+                                "Comcast",
+                                "Comcast"};
+
+ISP UE_ISP[total_UE] = {Verizon,
+                        Comcast,
+                        Verizon,
+                        ATnT};
+
+char *UE_ISP_DIS[total_UE] = {"Verizon",
+                              "Comcast",
+                              "Verizon",
+                              "ATnT"};
+
 const int cTotalLength = 10;
 
 char *EID[] = {"V001", "C001", "V002", "A001"};
+
 struct map EIDMapping[total_UE];
 
 LinkedList *list;
@@ -552,7 +584,7 @@ void drawBTS()
 {
     for (int i = 0; i < total_BTS; i++)
     {
-        DrawText(TextFormat("BTS%d", i), cell_to_pixel(ListBTS[i].loc).pointX + 10, cell_to_pixel(ListBTS[i].loc).pointY + 10, 8, ListBTS[i].loc.color);
+        DrawText(TextFormat("#%d $%s", i, BTS_ISP_DIS[i]), cell_to_pixel(ListBTS[i].loc).pointX + 10, cell_to_pixel(ListBTS[i].loc).pointY + 10, 5, ListBTS[i].loc.color);
     }
 }
 
@@ -792,6 +824,18 @@ float get_progress(int i)
     return 1 / (1 + (56 * pow(2.71, (-0.003 * 100 * i))));
 }
 
+int reqAuthBTS(BTS bts, Cell ue)
+{
+    if (bts.btsISP == ue.nodeIsp)
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
 // for user input
 void *user_input(void *arg)
 {
@@ -850,7 +894,7 @@ int main(void)
 
     // init sqlite db to store ue data for bts to fetch in a future version where ue and bts
     // can't directly access each others data
-    sqlite3 *DB;
+    // sqlite3 *DB;
     int exit_stat = 0;
     char *messageError;
 
@@ -940,10 +984,10 @@ int main(void)
     }
 
     // insert dummy values into hlr table
-    char *sql_insert_hlr = "INSERT OR IGNORE INTO HLR VALUES('V001', 20, 10, 'VERIZON', 1, 1000, 1);"
-                           "INSERT OR IGNORE INTO HLR VALUES('C001', 5,  5,  'COMCAST', 1, 2000, 2);"
-                           "INSERT OR IGNORE INTO HLR VALUES('V002', 10, 10, 'VERIZOM', 0, 3000, 0);"
-                           "INSERT OR IGNORE INTO HLR VALUES('A001', 15, 15, 'ATnT',    1, 4000, 1);";
+    char *sql_insert_hlr = "INSERT OR IGNORE INTO HLR VALUES('V001', 20, 10, 'VERIZON', 1, 100, 1);"
+                           "INSERT OR IGNORE INTO HLR VALUES('C001', 5,  5,  'COMCAST', 1, 200, 2);"
+                           "INSERT OR IGNORE INTO HLR VALUES('V002', 10, 10, 'VERIZOM', 0, 300, 0);"
+                           "INSERT OR IGNORE INTO HLR VALUES('A001', 15, 15, 'ATnT',    1, 400, 1);";
 
     exit_stat = sqlite3_exec(DB, sql_insert_hlr, NULL, 0, &messageError);
 
@@ -1063,10 +1107,11 @@ int main(void)
             state[i][j].cellY = startLoc[i][1];
             state[i][j].color = stateColor[j];
             state[i][j].connection = -1;
-            state[i][j].nodeIsp = Verizon;
+            state[i][j].nodeIsp = UE_ISP[i];
             state[i][j].flag = 1;
             state[i][j].id = i;
             state[i][j].mscId = -1;
+            state[i][j].roaming = -1;
         }
     }
 
@@ -1086,6 +1131,7 @@ int main(void)
         ListBTS[i].number_of_UE = BTS_Data[i][3];
         ListBTS[i].loc.color = BTS_Color[i];
         ListBTS[i].loc.id = i;
+        ListBTS[i].btsISP = BTS_ISP[i];
         // }
     }
 
@@ -1312,6 +1358,7 @@ int main(void)
             DrawText(TextFormat("%d", ListBTS[4].number_of_UE), 20, 45, 10, GOLD);
             DrawText(TextFormat("%d", ListBTS[5].number_of_UE), 20, 55, 10, PURPLE);
             DrawText(TextFormat("Network Rate : %0.f", getConnectionRate()), screenWidth / 2, 10, 10, WHITE);
+            DrawText(TextFormat("FPS : %d", GetFPS()), screenWidth * 0.75, 10, 10, WHITE);
 
             // display live and pending connections
             DrawText("Connections", 10, 75, 5, WHITE);
@@ -1352,6 +1399,33 @@ int main(void)
             // getValueMSC();
             getValueMSC2();
 
+            // stop the movement of ue if mouse on top
+            for (int i = 0; i < dynamic_UE_count; i++)
+            {
+                int check = 0;
+                for (int j = 0; j < trail_bits; j++)
+                {
+                    Rectangle rec;
+                    rec.x = cell_to_pixel(state[i][j]).pointX;
+                    rec.y = cell_to_pixel(state[i][j]).pointY;
+                    rec.height = lineGap;
+                    rec.width = lineGap;
+                    if (CheckCollisionPointRec(GetMousePosition(), rec))
+                    {
+                        check = 1;
+                        break;
+                    }
+                }
+                if (check == 1)
+                {
+                    state[i][0].flag = 0;
+                }
+                else
+                {
+                    state[i][0].flag = 1;
+                }
+            }
+
             bool connectPermission[dynamic_UE_count];
 
             sqlite3_stmt *stmt;
@@ -1365,9 +1439,31 @@ int main(void)
             int pos = 0, i = 0;
             while (sqlite3_step(stmt) == SQLITE_ROW)
             {
-                int validity = sqlite3_column_int(stmt, 4);
+                char *eid = sqlite3_column_text(stmt, 0);
+                int validity = sqlite3_column_int(stmt, 5);
+                int status = sqlite3_column_int(stmt, 4);
+                int index = -1;
+                for (int i = 0; i < dynamic_UE_count; i++)
+                {
+                    if (strcmp(EIDMapping[i].value, eid) == 0)
+                    {
+                        index = EIDMapping[i].key;
+                    }
+                }
+                if (state[index][0].roaming == 1)
+                {
+                    DrawText(TextFormat("%s (%s) : %d", eid, UE_ISP_DIS[index], validity), 10, 160 + i * 12, 10, RED);
+                }
+                else if (state[index][0].roaming == 0)
+                {
+                    DrawText(TextFormat("%s (%s) : %d", eid, UE_ISP_DIS[index], validity), 10, 160 + i * 12, 10, GREEN);
+                }
+                else
+                {
+                    DrawText(TextFormat("%s (%s) : %d", eid, UE_ISP_DIS[index], validity), 10, 160 + i * 12, 10, WHITE);
+                }
                 // printf("id=%d \n", id);
-                if (validity == -1)
+                if (status == -1)
                 {
                     connectPermission[i] = false;
                     // uncomment this if you wish to stop ue on end of validity
@@ -1393,10 +1489,29 @@ int main(void)
                 struct pair_int_int ue_to_bts;
                 ue_to_bts = nearestBTS(state[i][0]);
 
+                /*
+
+                at all times, we have three states:
+                1. WHITE -> Not connected to any BTS
+                2. GREEN -> Connected to Home BTS
+                3. RED   -> Connected to Visitor BTS
+
+                */
+                state[i][0].roaming = -1;
+
                 if (ue_to_bts.y > -1)
                 {
                     if (connectPermission[i])
                     {
+                        int auth = reqAuthBTS(ListBTS[ue_to_bts.y], state[i][0]);
+                        if (auth == 1)
+                        {
+                            state[i][0].roaming = 0;
+                        }
+                        else
+                        {
+                            state[i][0].roaming = 1;
+                        }
                         state[i][0].connection = ue_to_bts.y;
                         state[i][0].color = ListBTS[ue_to_bts.y].loc.color;
                     }
@@ -1439,9 +1554,33 @@ int main(void)
             for (int i = 0; i < dynamic_UE_count; i++)
             {
                 char sql_validity_update[128];
-                sprintf(sql_validity_update, "UPDATE HLR SET VALIDITY=VALIDITY-0.1 WHERE EID = '%s' AND VALIDITY > 0 ",
-                        // validity_update, EIDMapping[i].value, validity_update);
-                        EIDMapping[i].value);
+
+                /*
+
+                Based on connection, we have different deductions:
+                1. Outside Range   -> 0.2
+                2. Home            -> 1.0
+                3. Visitor/Roaming -> 5.0
+
+                */
+                if (state[i][0].roaming == 0)
+                {
+                    sprintf(sql_validity_update, "UPDATE HLR SET VALIDITY=VALIDITY-1 WHERE EID = '%s' AND VALIDITY > 0 ",
+                            // validity_update, EIDMapping[i].value, validity_update);
+                            EIDMapping[i].value);
+                }
+                else if (state[i][0].roaming == 1)
+                {
+                    sprintf(sql_validity_update, "UPDATE HLR SET VALIDITY=VALIDITY-5 WHERE EID = '%s' AND VALIDITY > 0 ",
+                            // validity_update, EIDMapping[i].value, validity_update);
+                            EIDMapping[i].value);
+                }
+                else if (state[i][0].roaming == -1)
+                {
+                    sprintf(sql_validity_update, "UPDATE HLR SET VALIDITY=VALIDITY-0.2 WHERE EID = '%s' AND VALIDITY > 0 ",
+                            // validity_update, EIDMapping[i].value, validity_update);
+                            EIDMapping[i].value);
+                }
 
                 exit_stat = sqlite3_exec(DB, sql_validity_update, callback, NULL, &messageError);
 
