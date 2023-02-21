@@ -18,6 +18,7 @@ me or figure it out yourself :)
 #include <pthread.h>
 #include <math.h>
 #include <regex.h>
+#include <signal.h>
 #include "raylib.h"
 
 #define MAX_INPUT_CHARS 9
@@ -142,6 +143,8 @@ int progress = 0;
 int dynamic_UE_count = total_UE;
 int frame_tracker = 0;
 
+int pause_x = 0;
+
 // conenction related
 int ue_x = -1, ue1_g = -1, ue2_g = -1;
 int ue_recharge = 0;
@@ -243,7 +246,7 @@ int callback_get(void *data, int argc, char **argv, char **azColName)
                 // printf("%s : %s \n", azColName[i], val);
                 if (checker != -1)
                 {
-                    printf("Connection for EID : %s has been disabled \n", tempEID);
+                    // printf("Connection for EID : %s has been disabled \n", tempEID);
                     status_update = tempEID;
                     // printf("status : %s \n", status_update);
                 }
@@ -836,6 +839,23 @@ int reqAuthBTS(BTS bts, Cell ue)
     }
 }
 
+void handle_sigint(int sig)
+{
+    char *answer;
+    scanf("Do you wish to exit? \n");
+    scanf("%s", &answer);
+    if (strcmp(answer, "yes") == 0)
+    {
+        printf("Exit success\n");
+        exit(0);
+    }
+    else
+    {
+        printf("Fine");
+        return;
+    }
+}
+
 // for user input
 void *user_input(void *arg)
 {
@@ -850,12 +870,26 @@ void *user_input(void *arg)
         if (strcmp(str, "connect") == 0)
         {
             sem_wait(mysemp);
-            printf("Enter EID of UE's u wish to connect : ");
+            printf("Enter ID of UE's u wish to connect : ");
             scanf("%d %d", &ue1_g, &ue2_g);
-            struct pair_int_int ue_connect_data;
-            ue_connect_data.x = ue1_g;
-            ue_connect_data.y = ue2_g;
-            add_node(list, ue_connect_data);
+            int check = 0;
+            if (!(ue1_g < 0 && ue1_g > dynamic_UE_count))
+            {
+                printf("Incorrect ID for UE 1\n");
+                check = 1;
+            }
+            if (!(ue2_g < 0 && ue2_g > dynamic_UE_count))
+            {
+                printf("Incorrect ID for UE 2\n");
+                check = 1;
+            }
+            if (!check)
+            {
+                struct pair_int_int ue_connect_data;
+                ue_connect_data.x = ue1_g;
+                ue_connect_data.y = ue2_g;
+                add_node(list, ue_connect_data);
+            }
             sem_post(mysemp);
         }
         else if (strcmp(str, "recharge") == 0)
@@ -863,6 +897,128 @@ void *user_input(void *arg)
             sem_wait(mysemp);
             printf("Enter EID of UE you wish to recharge and duration(1-100) : ");
             scanf("%d %d", &ue_x, &ue_recharge);
+            if (!(ue_x < 0 && ue_x > dynamic_UE_count))
+            {
+                printf("Invalid UE ID\n");
+            }
+            if (!(ue_recharge < 1 && ue_recharge > 100))
+            {
+                printf("Invalid recharge amt\n");
+            }
+            sem_post(mysemp);
+        }
+
+        else if (strcmp(str, "update") == 0)
+        {
+            sem_wait(mysemp);
+            int choice;
+            printf("Select an option:\n");
+            printf("\t1. UE\n");
+            printf("\t2. BTS\n");
+            scanf("%d", &choice);
+            if (!(choice < 1 && choice > 2))
+            {
+                printf("Incorrect choice");
+            }
+            else
+            {
+                if (choice == 1)
+                {
+                    int ue;
+                    printf("Enter UE ID\n");
+                    scanf("%d", &ue);
+                    if (!(ue < 0 && ue > dynamic_UE_count))
+                    {
+                        printf("Invalid UE ID\n");
+                    }
+                    else
+                    {
+                        int x, y;
+                        printf("Enter x, y\n");
+                        scanf("%d %d", &x, &y);
+                        if (!(x < horizontal_sep && x > screenWidth - lineGap))
+                        {
+                            printf("Out of bounds X value\n");
+                        }
+                        else if (!(y < vertical_sep && y > screenHeight - lineGap))
+                        {
+                            printf("Out of bounds Y value\n");
+                        }
+                        state[ue - 1][0].cellX = x;
+                        state[ue - 1][0].cellY = y;
+                    }
+                }
+                else if (choice == 2)
+                {
+                    int bts;
+                    printf("Enter BTS ID\n");
+                    scanf("%d", &bts);
+                    if (bts < 0 || bts > total_BTS)
+                    {
+                        printf("Invalid BTS ID\n");
+                    }
+                    else
+                    {
+                        int x, y, rad;
+                        printf("Enter x, y and radius\n");
+                        scanf("%d %d %d", &x, &y, &rad);
+                        if (!(x < horizontal_sep && x > screenWidth - lineGap))
+                        {
+                            printf("Out of bounds X value\n");
+                        }
+                        else if (!(y < vertical_sep && y > screenHeight - lineGap))
+                        {
+                            printf("Out of bounds Y value\n");
+                        }
+                        if (rad < 0 || rad > 150)
+                        {
+                            printf("Out of bounds Radius value\n");
+                        }
+                        ListBTS[bts].loc.cellX = x;
+                        ListBTS[bts].loc.cellY = y;
+                        ListBTS[bts].radius = rad;
+                        ListBTS[bts].number_of_UE = 0;
+                    }
+                }
+            }
+            sem_post(mysemp);
+        }
+        else if (strcmp(str, "pause") == 0)
+        {
+            sem_wait(mysemp);
+            // printf("here 3\n");
+            pause_x = 1;
+            sem_post(mysemp);
+        }
+        else if (strcmp(str, "resume") == 0)
+        {
+            sem_wait(mysemp);
+
+            pause_x = 0;
+            sem_post(mysemp);
+        }
+        // else if (strcmp(str, "exit") == 0)
+        // {
+        //     sem_wait(mysemp);
+        //     printf("here exit\n");
+        //     signal(SIGINT, handle_sigint);
+        //     sem_post(mysemp);
+        // }
+        else if (strcmp(str, "help") == 0)
+        {
+            sem_wait(mysemp);
+
+            char *resp = "\nNET-SIM\n\n"
+
+                         "Options:\n"
+                         "\n"
+                         "      help     Show this screen.\n\n"
+                         "      pause    Pause the simulation.\n"
+                         "      resume   Continue the sim\n"
+                         "      connect  Connect two UE's\n"
+                         "      recharge Recharge a UE\n"
+                         "      update   Update params of UE/BTS\n";
+            printf("%s", resp);
             sem_post(mysemp);
         }
     }
@@ -1362,6 +1518,7 @@ int main(void)
 
             // display live and pending connections
             DrawText("Connections", 10, 75, 5, WHITE);
+
             int count_ll = 0;
             Node *current_display = list->head;
             while (current_display != NULL)
@@ -1421,6 +1578,24 @@ int main(void)
                     state[i][0].flag = 0;
                 }
                 else
+                {
+                    state[i][0].flag = 1;
+                }
+            }
+
+            if (pause_x == 1)
+            {
+                // printf("here 1\n");
+                for (int i = 0; i < dynamic_UE_count; i++)
+                {
+                    state[i][0].flag = 0;
+                    // printf("%d %d", i, state[i][0].flag);
+                }
+            }
+            else
+            {
+                // printf("here 2\n")s;
+                for (int i = 0; i < dynamic_UE_count; i++)
                 {
                     state[i][0].flag = 1;
                 }
@@ -1690,10 +1865,13 @@ int main(void)
                     {
                         printf("Unauthorized access \n");
                         if (!connectPermission[ue1 - 1])
+                        {
                             printf("UE with EID : %s has invalid subscription\n", EIDMapping[ue1 - 1].value);
+                        }
                         else
+                        {
                             printf("UE with EID : %s has invalid subscription\n", EIDMapping[ue2 - 1].value);
-
+                        }
                         ue1 = -1;
                         ue2 = -1;
                     }
@@ -1738,7 +1916,7 @@ int main(void)
                         if (frame_tracker - currFrame == 1)
                         {
                             // printProgress(1);
-                            printf("Connection Established... \n");
+                            // printf("Connection Established... \n");
                         }
                         int test_n;
                         state[ue1 - 1][0].flag = 0;
@@ -1749,7 +1927,7 @@ int main(void)
                         {
                             if (frame_tracker - currFrame >= 50)
                             {
-                                printf("Disconnecting... \n");
+                                // printf("Disconnecting... \n");
                                 state[ue1 - 1][0].flag = 1;
                                 state[ue2 - 1][0].flag = 1;
                                 state[ue1 - 1][0].mscId = -1;
@@ -1762,7 +1940,7 @@ int main(void)
                                 // ListMSC[ue1_msc].ue_connects--;
                                 // ListMSC[ue2_msc].ue_connects--;
 
-                                printf("Disconnected successfully... \n");
+                                // printf("Disconnected successfully... \n");
                             }
                         }
                     }
@@ -1814,9 +1992,9 @@ int main(void)
                 }
                 else
                 {
-                    printf("Success!! \n");
+                    // printf("Success!! \n");
                 }
-                printf("Recharge successful for %d on EID %s \n", ue_recharge, EIDMapping[ue_x - 1].value);
+                // printf("Recharge successful for %d on EID %s \n", ue_recharge, EIDMapping[ue_x - 1].value);
                 ue_recharge = 0;
                 ue_x = -1;
             }
@@ -1910,6 +2088,7 @@ int main(void)
             // update state based on new direction
             for (int i = 0; i < dynamic_UE_count; i++)
             {
+                // if (state[i][0].flag == 1)
                 state[i][0] = update(state[i][0], cdire[i]);
             }
 
