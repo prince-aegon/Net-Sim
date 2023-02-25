@@ -897,12 +897,12 @@ void *user_input(void *arg)
             printf("Enter ID of UE's u wish to connect : ");
             scanf("%d %d", &ue1_g, &ue2_g);
             int check = 0;
-            if (!(ue1_g < 0 && ue1_g > dynamic_UE_count))
+            if (!(ue1_g > 0 && ue1_g < dynamic_UE_count))
             {
                 printf("Incorrect ID for UE 1\n");
                 check = 1;
             }
-            if (!(ue2_g < 0 && ue2_g > dynamic_UE_count))
+            if (!(ue2_g > 0 && ue2_g < dynamic_UE_count))
             {
                 printf("Incorrect ID for UE 2\n");
                 check = 1;
@@ -921,11 +921,11 @@ void *user_input(void *arg)
             sem_wait(mysemp);
             printf("Enter EID of UE you wish to recharge and duration(1-100) : ");
             scanf("%d %d", &ue_x, &ue_recharge);
-            if (!(ue_x < 0 && ue_x > dynamic_UE_count))
+            if (!(ue_x > 0 && ue_x < dynamic_UE_count))
             {
                 printf("Invalid UE ID\n");
             }
-            if (!(ue_recharge < 1 && ue_recharge > 100))
+            if (!(ue_recharge > 1 && ue_recharge < 100))
             {
                 printf("Invalid recharge amt\n");
             }
@@ -940,7 +940,7 @@ void *user_input(void *arg)
             printf("\t1. UE\n");
             printf("\t2. BTS\n");
             scanf("%d", &choice);
-            if (!(choice < 1 && choice > 2))
+            if (!(choice > 1 && choice < 2))
             {
                 printf("Incorrect choice");
             }
@@ -951,7 +951,7 @@ void *user_input(void *arg)
                     int ue;
                     printf("Enter UE ID\n");
                     scanf("%d", &ue);
-                    if (!(ue < 0 && ue > dynamic_UE_count))
+                    if (!(ue > 0 && ue < dynamic_UE_count))
                     {
                         printf("Invalid UE ID\n");
                     }
@@ -960,11 +960,11 @@ void *user_input(void *arg)
                         int x, y;
                         printf("Enter x, y\n");
                         scanf("%d %d", &x, &y);
-                        if (!(x < horizontal_sep && x > screenWidth - lineGap))
+                        if (!(x > horizontal_sep && x < screenWidth - lineGap))
                         {
                             printf("Out of bounds X value\n");
                         }
-                        else if (!(y < vertical_sep && y > screenHeight - lineGap))
+                        else if (!(y > vertical_sep && y < screenHeight - lineGap))
                         {
                             printf("Out of bounds Y value\n");
                         }
@@ -977,7 +977,7 @@ void *user_input(void *arg)
                     int bts;
                     printf("Enter BTS ID\n");
                     scanf("%d", &bts);
-                    if (bts < 0 || bts > total_BTS)
+                    if (!(bts > 0 && bts < total_BTS))
                     {
                         printf("Invalid BTS ID\n");
                     }
@@ -986,15 +986,15 @@ void *user_input(void *arg)
                         int x, y, rad;
                         printf("Enter x, y and radius\n");
                         scanf("%d %d %d", &x, &y, &rad);
-                        if (!(x < horizontal_sep && x > screenWidth - lineGap))
+                        if (!(x > horizontal_sep && x < screenWidth - lineGap))
                         {
                             printf("Out of bounds X value\n");
                         }
-                        else if (!(y < vertical_sep && y > screenHeight - lineGap))
+                        else if (!(y > vertical_sep && y < screenHeight - lineGap))
                         {
                             printf("Out of bounds Y value\n");
                         }
-                        if (rad < 0 || rad > 150)
+                        if (!(rad > 0 && rad < 150))
                         {
                             printf("Out of bounds Radius value\n");
                         }
