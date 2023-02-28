@@ -152,7 +152,7 @@ const int horizontal_sep = 75;
 
 const int lineGap = 10;
 
-const int total_UE = 4;
+const int total_UE = 5;
 const int total_BTS = 6;
 const int total_MSC = 2;
 const int trail_bits = 4;
@@ -202,16 +202,18 @@ char *BTS_ISP_DIS[total_BTS] = {"Verizon",
 ISP UE_ISP[total_UE] = {Verizon,
                         Comcast,
                         Verizon,
+                        ATnT,
                         ATnT};
 
 char *UE_ISP_DIS[total_UE] = {"Verizon",
                               "Comcast",
                               "Verizon",
+                              "ATnT",
                               "ATnT"};
 
 const int cTotalLength = 10;
 
-char *EID[] = {"V001", "C001", "V002", "A001"};
+char *EID[] = {"V001", "C001", "V002", "A001", "A002"};
 
 struct map EIDMapping[total_UE];
 
@@ -509,9 +511,18 @@ Point cell_to_pixel(Cell cell)
 // display id of ue
 void ueID(Cell cell)
 {
-    char buf[4];
+    char buf[dynamic_UE_count];
     snprintf(buf, sizeof buf, "%d", (cell.id + 1));
-    DrawText(buf, (cell_to_pixel(cell)).pointX + 3, (cell_to_pixel(cell)).pointY - 3, 5, WHITE);
+
+    if ((cell.id + 1) != 5)
+    {
+        DrawText(buf, (cell_to_pixel(cell)).pointX + 3, (cell_to_pixel(cell)).pointY - 3, 5, WHITE);
+    }
+    else
+    {
+        char *mod_x = "X";
+        DrawText(TextFormat("$"), (cell_to_pixel(cell)).pointX + 3, (cell_to_pixel(cell)).pointY - 3, 5, WHITE);
+    }
 }
 
 // validator for ue
@@ -573,6 +584,7 @@ void mark(Cell curr)
     DrawRectangle(horizontal_sep + lineGap * curr.cellX, vertical_sep + lineGap * curr.cellY, lineGap, lineGap, curr.color);
 }
 
+// draw the main bts marking
 void initBTS(BTS bts)
 {
     DrawCircleLines(horizontal_sep + lineGap * bts.loc.cellX + 0.5 * lineGap, vertical_sep + lineGap * bts.loc.cellY + 0.5 * lineGap, bts.radius, bts.loc.color);
@@ -607,6 +619,7 @@ Cell update(Cell curr, int dir)
     }
 }
 
+// draw BTS text indication
 void drawBTS()
 {
     for (int i = 0; i < total_BTS; i++)
@@ -641,6 +654,8 @@ int newDirection(Cell curr, int cDir)
     }
 }
 
+// connect UE to BTS, the connection type is to give specific color while in
+// connection
 void connectUEtoBTS(Cell ue, Cell BTS, int connection_type)
 {
     Point point_bts = cell_to_pixel(BTS);
@@ -657,6 +672,7 @@ void connectUEtoBTS(Cell ue, Cell BTS, int connection_type)
     }
 }
 
+// msc class data init
 void initMSC()
 {
     ListMSC[0].loc.cellX = 12;
@@ -676,6 +692,7 @@ void initMSC()
         ListMSC[1].resp[i] = ListBTS[i + 3];
 }
 
+// draw the rectangles for msc indication
 void drawMSC()
 {
     DrawText("MSC #1", cell_to_pixel(ListMSC[0].loc).pointX - 45, cell_to_pixel(ListMSC[0].loc).pointY + 6, 7, MAROON);
@@ -684,14 +701,22 @@ void drawMSC()
     DrawRectangleGradientV(cell_to_pixel(ListMSC[1].loc).pointX, cell_to_pixel(ListMSC[1].loc).pointY, 2 * lineGap - 2, 3 * lineGap, ORANGE, MAROON);
 }
 
+// connect the two msc's currently
 void connectMSC()
 {
     DrawLineEx((Vector2){cell_to_pixel(ListMSC[0].loc).pointX + 3 * lineGap, cell_to_pixel(ListMSC[0].loc).pointY + 2 * lineGap}, (Vector2){cell_to_pixel(ListMSC[1].loc).pointX, cell_to_pixel(ListMSC[1].loc).pointY}, 2.5, ORANGE);
 }
 
+// connect ue to msc *no longer applicable
 void connectUEtoMSC(Cell ue, MSC msc)
 {
     DrawLine(cell_to_pixel(ue).pointX, cell_to_pixel(ue).pointY, cell_to_pixel(msc.loc).pointX + lineGap, cell_to_pixel(msc.loc).pointY, PURPLE);
+}
+
+// connect bts to msc for inter-msc connections
+void connectBTStoMSC(BTS bts, MSC msc)
+{
+    DrawLine(cell_to_pixel(bts.loc).pointX, cell_to_pixel(bts.loc).pointY, cell_to_pixel(msc.loc).pointX + lineGap, cell_to_pixel(msc.loc).pointY, PURPLE);
 }
 int factorial(int n)
 {
@@ -764,6 +789,7 @@ void getValueMSC2()
     DrawText(buf, 250, 475, 10, YELLOW);
 }
 
+// hard coded points for msc boundaries
 void drawMscDemarc()
 {
     Cell cells[4];
@@ -822,6 +848,8 @@ void connectBTStoBTS(Cell BTS1, Cell BTS2)
     Point point_bts2 = cell_to_pixel(BTS2);
     DrawLine(point_bts1.pointX, point_bts1.pointY, point_bts2.pointX, point_bts2.pointY, PURPLE);
 }
+
+// get the nearest bts to a ue
 struct pair_int_int nearestBTS(Cell curr)
 {
     struct pair_int_int ret;
@@ -897,12 +925,12 @@ void *user_input(void *arg)
             printf("Enter ID of UE's u wish to connect : ");
             scanf("%d %d", &ue1_g, &ue2_g);
             int check = 0;
-            if (!(ue1_g > 0 && ue1_g < dynamic_UE_count))
+            if (!(ue1_g > 0 && ue1_g < dynamic_UE_count + 1))
             {
                 printf("Incorrect ID for UE 1\n");
                 check = 1;
             }
-            if (!(ue2_g > 0 && ue2_g < dynamic_UE_count))
+            if (!(ue2_g > 0 && ue2_g < dynamic_UE_count + 1))
             {
                 printf("Incorrect ID for UE 2\n");
                 check = 1;
@@ -921,7 +949,7 @@ void *user_input(void *arg)
             sem_wait(mysemp);
             printf("Enter EID of UE you wish to recharge and duration(1-100) : ");
             scanf("%d %d", &ue_x, &ue_recharge);
-            if (!(ue_x > 0 && ue_x < dynamic_UE_count))
+            if (!(ue_x > 0 && ue_x < dynamic_UE_count + 1))
             {
                 printf("Invalid UE ID\n");
             }
@@ -951,7 +979,7 @@ void *user_input(void *arg)
                     int ue;
                     printf("Enter UE ID\n");
                     scanf("%d", &ue);
-                    if (!(ue > 0 && ue < dynamic_UE_count))
+                    if (!(ue > 0 && ue < dynamic_UE_count + 1))
                     {
                         printf("Invalid UE ID\n");
                     }
@@ -977,7 +1005,7 @@ void *user_input(void *arg)
                     int bts;
                     printf("Enter BTS ID\n");
                     scanf("%d", &bts);
-                    if (!(bts > 0 && bts < total_BTS))
+                    if (!(bts > 0 && bts < total_BTS + 1))
                     {
                         printf("Invalid BTS ID\n");
                     }
@@ -1144,7 +1172,8 @@ int main(void)
     char *sql_insert_ue = "INSERT OR IGNORE INTO UE VALUES('V001', 1, 20, 10);"
                           "INSERT OR IGNORE INTO UE VALUES('C001', 2, 5, 5);"
                           "INSERT OR IGNORE INTO UE VALUES('V002', 3, 10, 10);"
-                          "INSERT OR IGNORE INTO UE VALUES('A001', 4, 15, 15);";
+                          "INSERT OR IGNORE INTO UE VALUES('A001', 4, 15, 15);"
+                          "INSERT OR IGNORE INTO UE VALUES('A002', 5, 20, 20);";
 
     exit_stat = sqlite3_exec(DB, sql_insert_ue, NULL, 0, &messageError);
 
@@ -1164,10 +1193,11 @@ int main(void)
     }
 
     // insert dummy values into hlr table
-    char *sql_insert_hlr = "INSERT OR IGNORE INTO HLR VALUES('V001', 20, 10, 'VERIZON', 1, 100, 1);"
-                           "INSERT OR IGNORE INTO HLR VALUES('C001', 5,  5,  'COMCAST', 1, 200, 2);"
-                           "INSERT OR IGNORE INTO HLR VALUES('V002', 10, 10, 'VERIZOM', 0, 300, 0);"
-                           "INSERT OR IGNORE INTO HLR VALUES('A001', 15, 15, 'ATnT',    1, 400, 1);";
+    char *sql_insert_hlr = "INSERT OR IGNORE INTO HLR VALUES('V001', 20, 10, 'VERIZON', 1, 10000, 1);"
+                           "INSERT OR IGNORE INTO HLR VALUES('C001', 5,  5,  'COMCAST', 1, 20000, 2);"
+                           "INSERT OR IGNORE INTO HLR VALUES('V002', 10, 10, 'VERIZOM', 0, 30000, 0);"
+                           "INSERT OR IGNORE INTO HLR VALUES('A001', 15, 15, 'ATnT',    1, 40000, 1);"
+                           "INSERT OR IGNORE INTO HLR VALUES('A002', 20, 20, 'ATnT',    1, 40000, 1);";
 
     exit_stat = sqlite3_exec(DB, sql_insert_hlr, NULL, 0, &messageError);
 
@@ -1274,7 +1304,7 @@ int main(void)
 
     list = create_list();
     // Man data 1
-    int startLoc[total_UE][2] = {{10, 10}, {20, 20}, {30, 30}, {40, 40}};
+    int startLoc[total_UE][2] = {{10, 10}, {20, 20}, {30, 30}, {40, 40}, {50, 50}};
     // printf("%s\n", (dynamic_UE_count));
     // printf("%d\n", (trail_bits));
 
@@ -1446,6 +1476,25 @@ int main(void)
             // {
             //     connect_1_3 = false;
             // }
+
+            // the 5th ue or indicated by 4, is user movable
+            if (IsKeyDown(KEY_UP))
+            {
+                state[4][0] = update(state[4][0], 0);
+            }
+            else if (IsKeyDown(KEY_DOWN))
+            {
+                state[4][0] = update(state[4][0], 2);
+            }
+            else if (IsKeyDown(KEY_RIGHT))
+            {
+                state[4][0] = update(state[4][0], 1);
+            }
+            else if (IsKeyDown(KEY_LEFT))
+            {
+                state[4][0] = update(state[4][0], 3);
+            }
+
             frame_tracker++;
         }
 
@@ -1603,7 +1652,10 @@ int main(void)
                 }
                 else
                 {
-                    state[i][0].flag = 1;
+                    if (i != 4)
+                    {
+                        state[i][0].flag = 1;
+                    }
                 }
             }
 
@@ -1621,7 +1673,10 @@ int main(void)
                 // printf("here 2\n")s;
                 for (int i = 0; i < dynamic_UE_count; i++)
                 {
-                    state[i][0].flag = 1;
+                    if (i != 4)
+                    {
+                        state[i][0].flag = 1;
+                    }
                 }
             }
 
@@ -1924,8 +1979,12 @@ int main(void)
 
                         if (ue1_msc != ue2_msc)
                         {
-                            connectUEtoMSC(state[ue1 - 1][0], ListMSC[ue1_msc]);
-                            connectUEtoMSC(state[ue2 - 1][0], ListMSC[ue2_msc]);
+                            connectUEtoBTS(state[ue1 - 1][0], ListBTS[state[ue1 - 1][0].connection].loc, 1);
+                            connectUEtoBTS(state[ue2 - 1][0], ListBTS[state[ue2 - 1][0].connection].loc, 1);
+                            connectBTStoMSC(ListBTS[state[ue1 - 1][0].connection], ListMSC[ue1_msc]);
+                            connectBTStoMSC(ListBTS[state[ue2 - 1][0].connection], ListMSC[ue2_msc]);
+                            // connectUEtoMSC(state[ue1 - 1][0], ListMSC[ue1_msc]);
+                            // connectUEtoMSC(state[ue2 - 1][0], ListMSC[ue2_msc]);
                             // printf("%d, %d\n", ue1_msc, ue2_msc);
                             // ListMSC[ue1_msc].ue_connects++;
                             // ListMSC[ue2_msc].ue_connects++;
@@ -2096,7 +2155,11 @@ int main(void)
             // get new direction based on curr and state
             for (int i = 0; i < dynamic_UE_count; i++)
             {
-                cdire[i] = newDirection(state[i][0], cdire[i]);
+                // the 4th id is for user movable
+                if (i != 4)
+                {
+                    cdire[i] = newDirection(state[i][0], cdire[i]);
+                }
             }
             // move colors across tail
             for (int i = 0; i < dynamic_UE_count; i++)
@@ -2113,7 +2176,12 @@ int main(void)
             for (int i = 0; i < dynamic_UE_count; i++)
             {
                 // if (state[i][0].flag == 1)
-                state[i][0] = update(state[i][0], cdire[i]);
+
+                // the 4th id is for user movable
+                if (i != 4)
+                {
+                    state[i][0] = update(state[i][0], cdire[i]);
+                }
             }
 
             // update position in database
