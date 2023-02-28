@@ -1351,6 +1351,7 @@ int main(void)
 
     int currScreen = 0;
     int currFrame = 0;
+    int terminalMarker = 0;
 
     // activate when cursor in box
     bool mouseOnText = false;
@@ -1367,6 +1368,24 @@ int main(void)
         // menu screen - non-display
         if (currScreen == 0)
         {
+            if (terminalMarker == 0)
+            {
+                system("clear");
+                printf("------WELCOME------\n");
+                char *resp = "\nNET-SIM\n\n"
+
+                             "Options:\n"
+                             "\n"
+                             "      help     Show this screen.\n\n"
+                             "      pause    Pause the simulation.\n"
+                             "      resume   Continue the sim\n"
+                             "      connect  Connect two UE's\n"
+                             "      recharge Recharge a UE\n"
+                             "      update   Update params of UE/BTS\n";
+                printf("%s", resp);
+                printf("\n\n\n\n\n");
+                terminalMarker++;
+            }
             // SetTargetFPS(targetfpsMenu);
 
             scrollingBack -= 0.1f;
@@ -1478,21 +1497,76 @@ int main(void)
             // }
 
             // the 5th ue or indicated by 4, is user movable
+            // 1 cell a move
             if (IsKeyDown(KEY_UP))
             {
-                state[4][0] = update(state[4][0], 0);
+                if (state[4][0].cellY >= 1)
+                {
+                    state[4][0] = update(state[4][0], 0);
+                }
             }
             else if (IsKeyDown(KEY_DOWN))
             {
-                state[4][0] = update(state[4][0], 2);
+                if (state[4][0].cellY <= 67)
+                {
+                    state[4][0] = update(state[4][0], 2);
+                }
             }
             else if (IsKeyDown(KEY_RIGHT))
             {
-                state[4][0] = update(state[4][0], 1);
+                if (state[4][0].cellX <= 84)
+                {
+                    state[4][0] = update(state[4][0], 1);
+                }
             }
             else if (IsKeyDown(KEY_LEFT))
             {
-                state[4][0] = update(state[4][0], 3);
+                if (state[4][0].cellX >= 0)
+                {
+                    state[4][0] = update(state[4][0], 3);
+                }
+            }
+
+            // move same but just 3 moves together for more speed
+            if (IsKeyDown(KEY_W))
+            {
+                if (state[4][0].cellY >= 1)
+                {
+                    for (int i = 0; i < 3; i++)
+                    {
+                        state[4][0] = update(state[4][0], 0);
+                    }
+                }
+            }
+            else if (IsKeyDown(KEY_S))
+            {
+                if (state[4][0].cellY <= 67)
+                {
+                    for (int i = 0; i < 3; i++)
+                    {
+                        state[4][0] = update(state[4][0], 2);
+                    }
+                }
+            }
+            else if (IsKeyDown(KEY_D))
+            {
+                if (state[4][0].cellX <= 84)
+                {
+                    for (int i = 0; i < 3; i++)
+                    {
+                        state[4][0] = update(state[4][0], 1);
+                    }
+                }
+            }
+            else if (IsKeyDown(KEY_A))
+            {
+                if (state[4][0].cellX >= 0)
+                {
+                    for (int i = 0; i < 3; i++)
+                    {
+                        state[4][0] = update(state[4][0], 3);
+                    }
+                }
             }
 
             frame_tracker++;
@@ -2254,6 +2328,7 @@ int main(void)
     UnloadTexture(foreground); // Unload foreground texture
 
     CloseWindow();
+    system("clear");
 
     char sql_drop[64];
     sprintf(sql_drop, "DROP TABLE UE");
