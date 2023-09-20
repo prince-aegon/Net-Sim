@@ -1237,6 +1237,7 @@ int main(void)
         printf("Query passed \n");
     }
 
+    /*
     FILE *file;
     char buffer[28];
     int count;
@@ -1270,6 +1271,7 @@ int main(void)
     regfree(&regex);
 
     fclose(file);
+    */
 
     populateEID();
     SetTraceLogCallback(CustomLog);
