@@ -13,5 +13,8 @@ Current status:
 7. Each UE holds a limited validity which variably changes based on location and BTS and can be recharged from terminal
 8. Each UE can hold multiple connections
 9. Metrics are displayed on simulation screen
+10. User has ability to pause/resume the simulation
+11. User can move a UE manually
+12. Connections not possible currently will wait for a connection in queue and is displayed on screen
 
 Run cmd : `./shell.sh`
