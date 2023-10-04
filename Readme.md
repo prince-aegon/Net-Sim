@@ -18,3 +18,8 @@ Current status:
 12. Connections not possible currently will wait for a connection in queue and is displayed on screen
 
 Run cmd : `./shell.sh`
+
+
+
+https://github.com/prince-aegon/Net-Sim/assets/75627264/8fb249ed-7beb-45f5-952f-beda532c7148
+
