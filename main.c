@@ -22,15 +22,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-/*
-
-Please note that since work on this project is in progress,
-I have written a script to prevent the code from running
-on other people's device. To run the code either contact
-me or figure it out yourself :)
-
-*/
-
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
